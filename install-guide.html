@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Installation — Work Hours</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800;900&display=swap');
+* { margin:0; padding:0; box-sizing:border-box; }
+:root {
+  --bg:#0f0f13; --card:#18181f; --card2:#1e1e28;
+  --border:rgba(255,255,255,0.07); --accent:#007aff;
+  --green:#30d158; --text:#f0f0f5; --muted:#8e8e9a; --url:#3a9bff;
+}
+body { background:var(--bg); color:var(--text); font-family:'Manrope',-apple-system,sans-serif; min-height:100vh; padding:48px 20px 80px; }
+.hero { text-align:center; margin-bottom:56px; }
+.hero-icon { width:72px;height:72px;background:var(--accent);border-radius:18px;display:inline-flex;align-items:center;justify-content:center;font-size:38px;margin-bottom:20px;box-shadow:0 0 40px rgba(0,122,255,0.35); }
+.hero h1 { font-size:clamp(28px,5vw,42px);font-weight:900;letter-spacing:-1px;margin-bottom:10px; }
+.hero p { font-size:16px;color:var(--muted);max-width:480px;margin:0 auto 28px;line-height:1.6; }
+.url-box { display:inline-flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 18px;max-width:100%; }
+.url-text { font-size:13px;color:var(--url);font-weight:700;word-break:break-all;text-align:left; }
+.copy-btn { background:var(--accent);border:none;border-radius:8px;padding:6px 12px;color:#fff;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0;transition:opacity 0.15s; }
+.copy-btn:active { opacity:0.7; }
+.grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;max-width:960px;margin:0 auto; }
+.card { background:var(--card);border:1px solid var(--border);border-radius:20px;padding:28px 26px;position:relative;overflow:hidden;transition:transform 0.2s; }
+.card:hover { transform:translateY(-2px); }
+.card::before { content:'';position:absolute;top:0;left:0;right:0;height:2px;border-radius:20px 20px 0 0; }
+.card.iphone::before { background:linear-gradient(90deg,#30d158,#007aff); }
+.card.android::before { background:linear-gradient(90deg,#30d158,#86efac); }
+.card.mac::before { background:linear-gradient(90deg,#ff9f0a,#ff6b6b); }
+.card.windows::before { background:linear-gradient(90deg,#007aff,#5856d6); }
+.card-header { display:flex;align-items:center;gap:14px;margin-bottom:22px; }
+.platform-icon { font-size:36px;line-height:1; }
+.platform-name { font-size:20px;font-weight:800;letter-spacing:-0.3px; }
+.platform-sub { font-size:12px;color:var(--muted);margin-top:2px;font-weight:600; }
+.steps { display:flex;flex-direction:column;gap:12px; }
+.step { display:flex;gap:12px;align-items:flex-start; }
+.step-num { width:24px;height:24px;border-radius:50%;background:var(--card2);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--muted);flex-shrink:0;margin-top:1px; }
+.step-text { font-size:14px;color:#ccc;line-height:1.55; }
+.step-text b { color:var(--text);font-weight:700; }
+.step-text .tag { display:inline-block;background:var(--card2);border:1px solid var(--border);border-radius:6px;padding:1px 7px;font-size:12px;font-weight:700;color:var(--text);margin:0 1px; }
+.badge { display:inline-flex;align-items:center;gap:5px;margin-top:18px;background:rgba(48,209,88,0.12);border:1px solid rgba(48,209,88,0.25);border-radius:20px;padding:5px 12px;font-size:12px;font-weight:700;color:var(--green); }
+.note { background:rgba(255,159,10,0.08);border:1px solid rgba(255,159,10,0.2);border-radius:12px;padding:14px 16px;margin-top:32px;max-width:960px;margin-left:auto;margin-right:auto;display:flex;gap:12px;align-items:flex-start; }
+.note-icon { font-size:20px;flex-shrink:0;margin-top:1px; }
+.note-text { font-size:13px;color:#d4a44c;line-height:1.6; }
+.note-text b { color:#ffbd5a; }
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <div class="hero-icon">⏱</div>
+  <h1>Installation guide</h1>
+  <p>Work Hours runs as a PWA — install on any device directly from the browser, no App Store needed</p>
+  <div class="url-box">
+    <div class="url-text" id="appUrl">https://htmlpreview.github.io/?https://gist.github.com/blackcat197/da6e67895984fd4cf2d15cdd15c2ab74/raw/index.html</div>
+    <button class="copy-btn" onclick="copyUrl()">Copy</button>
+  </div>
+</div>
+
+<div class="grid">
+
+  <div class="card iphone">
+    <div class="card-header">
+      <div class="platform-icon">🍎</div>
+      <div>
+        <div class="platform-name">iPhone / iPad</div>
+        <div class="platform-sub">Safari — required</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Copy the link above and open it in <b>Safari</b> (not Chrome, not Brave)</div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Tap the <b>Share</b> button <span class="tag">↑</span> at the bottom center of the screen</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Scroll down → select <span class="tag">Add to Home Screen</span></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">Tap <b>Add</b> — the icon will appear on your home screen</div></div>
+    </div>
+    <div class="badge">✓ Works offline</div>
+  </div>
+
+  <div class="card android">
+    <div class="card-header">
+      <div class="platform-icon">🤖</div>
+      <div>
+        <div class="platform-name">Android</div>
+        <div class="platform-sub">Chrome — recommended</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Open the link in <b>Chrome</b></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">Tap <span class="tag">⋮</span> three dots in the top right corner</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Select <span class="tag">Add to Home screen</span> or <span class="tag">Install app</span></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">Tap <b>Install</b> — done</div></div>
+    </div>
+    <div class="badge">✓ Notifications work</div>
+  </div>
+
+  <div class="card mac">
+    <div class="card-header">
+      <div class="platform-icon">💻</div>
+      <div>
+        <div class="platform-name">Mac</div>
+        <div class="platform-sub">Safari or Chrome</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Open the link in <b>Chrome</b> or <b>Safari</b></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text"><b>Chrome:</b> click the <span class="tag">⊕</span> icon in the address bar → <b>Install</b></div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text"><b>Safari:</b> go to <span class="tag">File</span> menu → <span class="tag">Add to Dock</span></div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">The app will appear in Launchpad and the Dock</div></div>
+    </div>
+    <div class="badge">✓ Opens as a separate window</div>
+  </div>
+
+  <div class="card windows">
+    <div class="card-header">
+      <div class="platform-icon">🪟</div>
+      <div>
+        <div class="platform-name">Windows</div>
+        <div class="platform-sub">Chrome or Edge</div>
+      </div>
+    </div>
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><div class="step-text">Open the link in <b>Chrome</b> or <b>Microsoft Edge</b></div></div>
+      <div class="step"><div class="step-num">2</div><div class="step-text">An <span class="tag">⊕</span> icon will appear in the address bar — click it</div></div>
+      <div class="step"><div class="step-num">3</div><div class="step-text">Click <b>Install</b> in the popup window</div></div>
+      <div class="step"><div class="step-num">4</div><div class="step-text">A shortcut will appear on the desktop and in the Start menu</div></div>
+    </div>
+    <div class="badge">✓ Works without a browser</div>
+  </div>
+
+</div>
+
+<div class="note">
+  <div class="note-icon">💡</div>
+  <div class="note-text">
+    <b>Data is stored on your device</b> — back up in the app settings <b>⚙️ → Backup → Save backup</b> to avoid losing data if the browser cache is cleared.
+  </div>
+</div>
+
+<script>
+function copyUrl(){
+  const url = document.getElementById('appUrl').textContent;
+  navigator.clipboard.writeText(url).then(()=>{
+    const btn = document.querySelector('.copy-btn');
+    btn.textContent = '✓ Copied';
+    btn.style.background = '#30d158';
+    setTimeout(()=>{ btn.textContent='Copy'; btn.style.background=''; }, 2000);
+  });
+}
+</script>
+</body>
+</html>
