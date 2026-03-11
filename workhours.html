@@ -444,6 +444,20 @@ body {
   box-shadow:0 1px 3px rgba(0,0,0,0.1); flex-shrink:0;
 }
 .sms-edit-btn:active { opacity:0.6; }
+.sms-edit-row {
+  display:flex; gap:8px; align-items:center; margin-bottom:10px;
+}
+.sms-edit-input {
+  flex:1; background:var(--surface); border:2px solid var(--accent);
+  border-radius:12px; padding:12px 14px; font-size:16px; font-weight:600;
+  color:var(--text); outline:none;
+}
+.sms-save-name-btn {
+  width:44px; height:44px; border:none; border-radius:12px;
+  background:var(--accent); color:#fff; font-size:20px; font-weight:800;
+  cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center;
+}
+.sms-save-name-btn:active { opacity:0.8; }
 .sms-send-btn {
   width:100%; border:none; border-radius:14px; padding:15px;
   background:var(--green); font-size:16px; font-weight:800; color:#fff;
@@ -705,13 +719,18 @@ body {
           </div>
 
           <!-- Recipient row -->
-          <div class="sms-recipient-row">
+          <div class="sms-recipient-row" id="smsRecipientRow">
             <span class="sms-recipient-icon">👤</span>
             <div class="sms-recipient-info">
               <div class="sms-recipient-name" id="smsRecipientName">Tap ✏️ to set contact</div>
               <div class="sms-recipient-sub" id="smsRecipientSub">No recipient yet</div>
             </div>
-            <button class="sms-edit-btn" onclick="editSmsRecipient()">✏️</button>
+            <button class="sms-edit-btn" id="smsEditBtn" onclick="toggleSmsEdit()">✏️</button>
+          </div>
+          <!-- Edit recipient inline -->
+          <div class="sms-edit-row" id="smsEditRow" style="display:none">
+            <input class="sms-edit-input" id="smsEditInput" type="text" placeholder="Name..." />
+            <button class="sms-save-name-btn" onclick="saveSmsRecipient()">✓</button>
           </div>
 
           <!-- Send button -->
@@ -784,7 +803,7 @@ const LANG = {
     bwLabel:'Итого за две недели',
     moLabel:'Итого за месяц',
     workDays:'рабочих дней', workDn:'рабочих дн.',
-    hrs:'часа', hrsS:'Часов',
+    hrs:'часов', hrsS:'Часов',
     dn:'дн.',
     offDay:'Выходной', selectHours:'Выберите рабочие часы',
     save:'Сохранить', cancel:'Отмена',
@@ -1030,16 +1049,37 @@ function updateSmsBtn(){
   } catch(e){}
 }
 
-function editSmsRecipient(){
-  const isRU = lang === 'ru';
-  let current = '';
-  try { current = localStorage.getItem('wh_sms_last') || ''; } catch(e){}
-  const name = prompt(isRU ? 'Имя получателя:' : 'Recipient name:', current);
-  if(name !== null && name.trim()){
-    try { localStorage.setItem('wh_sms_last', name.trim()); } catch(e){}
-    updateSmsBtn();
+function toggleSmsEdit(){
+  const row = document.getElementById('smsEditRow');
+  const input = document.getElementById('smsEditInput');
+  const btn = document.getElementById('smsEditBtn');
+  if(row.style.display === 'none'){
+    let current = '';
+    try { current = localStorage.getItem('wh_sms_last') || ''; } catch(e){}
+    input.value = current;
+    row.style.display = 'flex';
+    btn.textContent = '✕';
+    setTimeout(()=>input.focus(), 50);
+  } else {
+    row.style.display = 'none';
+    btn.textContent = '✏️';
   }
 }
+
+function saveSmsRecipient(){
+  const input = document.getElementById('smsEditInput');
+  const name = input.value.trim();
+  if(name){
+    try { localStorage.setItem('wh_sms_last', name); } catch(e){}
+    updateSmsBtn();
+  }
+  const row = document.getElementById('smsEditRow');
+  const btn = document.getElementById('smsEditBtn');
+  if(row) row.style.display = 'none';
+  if(btn) btn.textContent = '✏️';
+}
+
+function editSmsRecipient(){ toggleSmsEdit(); }
 
 function sendSmsInvoice(){
   const isRU = lang === 'ru';
