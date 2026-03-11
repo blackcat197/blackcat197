@@ -1002,7 +1002,7 @@ function setSmsCurrentContact(c){
 }
 function clearSmsCurrentContact(){
   _smsContactMem = null;
-  try { clearSmsCurrentContact(); } catch(e){}
+  try { localStorage.removeItem('wh_sms_contact'); } catch(e){}
   try { sessionStorage.removeItem('wh_sms_contact'); } catch(e){}
 }
 function isMobile(){
@@ -1255,17 +1255,6 @@ function showSmsPickOverlay(){
       } catch(e){}
     });
     body.appendChild(pickBtn);
-  } else {
-    // iPhone: info row — contacts picked via Messages app
-    const infoRow = document.createElement('div');
-    infoRow.style.cssText = 'display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f2f2f2;background:#fff8e8;';
-    infoRow.innerHTML = '<div style="font-size:22px;flex-shrink:0;">ℹ️</div>'
-      + '<div style="font-size:13px;color:#555;line-height:1.5;">'
-      + (isRU
-        ? 'На iPhone контакт выбирается в приложении <b>Сообщения</b>. Нажмите «Отправить» — откроется окно SMS, выберите там получателя и сохраните его ниже.'
-        : 'On iPhone, pick the recipient inside the <b>Messages</b> app. Tap Send — an SMS window opens, choose the contact there, then save them below.')
-      + '</div>';
-    body.appendChild(infoRow);
   }
 
   // Recent contacts
@@ -1296,27 +1285,41 @@ function showSmsPickOverlay(){
     });
   }
 
-  // iPhone: manual name save after sending
+  // iPhone: name field + "Add & Send" button
   if(!smsPickSupported()){
     const saveSect = document.createElement('div');
-    saveSect.style.cssText = 'padding:14px 18px 10px;border-top:1px solid #f2f2f2;';
-    const saveLbl = document.createElement('div');
-    saveLbl.style.cssText = 'font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;';
-    saveLbl.textContent = isRU ? 'Сохранить получателя' : 'Save recipient name';
-    saveSect.appendChild(saveLbl);
+    saveSect.style.cssText = 'padding:14px 18px 10px;border-top:1px solid #f0f0f0;background:#fff;';
     const saveRow = document.createElement('div');
     saveRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
     const inp = document.createElement('input');
     inp.type = 'text';
     inp.placeholder = isRU ? 'Имя контакта...' : 'Contact name...';
-    inp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:12px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
-    function doSave(){ const v = inp.value.trim(); if(v) selectSmsContact(v, ''); }
-    inp.addEventListener('keydown', function(e){ if(e.key==='Enter') doSave(); });
-    const saveBtn = document.createElement('button');
-    saveBtn.style.cssText = 'width:48px;height:48px;border:none;border-radius:12px;background:#007aff;color:#fff;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;';
-    saveBtn.textContent = '✓';
-    saveBtn.addEventListener('click', doSave);
-    saveRow.appendChild(inp); saveRow.appendChild(saveBtn);
+    inp.style.cssText = 'flex:1;border:2px solid #e0e0e0;border-radius:12px;padding:13px 14px;font-size:16px;color:#111;outline:none;background:#f8f8f8;transition:border 0.2s;';
+    inp.addEventListener('focus', function(){ this.style.border='2px solid #007aff'; this.style.background='#fff'; });
+    inp.addEventListener('blur', function(){ this.style.border='2px solid #e0e0e0'; this.style.background='#f8f8f8'; });
+
+    const sendBtn = document.createElement('button');
+    sendBtn.style.cssText = 'border:none;border-radius:12px;background:#34c759;color:#fff;font-size:13px;font-weight:800;cursor:pointer;padding:0 14px;height:48px;white-space:nowrap;flex-shrink:0;';
+    sendBtn.textContent = isRU ? 'Add & Send' : 'Add & Send';
+
+    sendBtn.addEventListener('click', function(){
+      const name = inp.value.trim();
+      if(!name){ inp.style.border='2px solid #ff3b30'; inp.focus(); return; }
+      // Save contact
+      const bw = getBiweekly();
+      smsHours = bw.total;
+      selectSmsContactSilent(name, '');
+      // Close overlay and show preview
+      ov.remove();
+      showSmsPreview();
+    });
+
+    inp.addEventListener('keydown', function(e){
+      if(e.key==='Enter'){ sendBtn.click(); }
+    });
+
+    saveRow.appendChild(inp);
+    saveRow.appendChild(sendBtn);
     saveSect.appendChild(saveRow);
     body.appendChild(saveSect);
   }
@@ -1336,18 +1339,22 @@ function showSmsPickOverlay(){
   ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
 }
 
+function selectSmsContactSilent(name, tel){
+  name = (name||'').trim();
+  if(!name) return;
+  setSmsCurrentContact({name, tel: tel||''});
+  saveToSmsRecent({name, tel: tel||''});
+  updateSmsBtn();
+  const hBtn = document.getElementById('headerSendBtn');
+  if(hBtn){ hBtn.title = name; hBtn.style.background = 'var(--green)'; }
+}
+
 function selectSmsContact(name, tel){
   name = (name||'').trim();
   if(!name) return;
   const ov = document.getElementById('_smsOv');
   if(ov) ov.remove();
-  setSmsCurrentContact({name, tel: tel||''});
-  saveToSmsRecent({name, tel: tel||''});
-  updateSmsBtn();
-  // Update header send button
-  const hBtn = document.getElementById('headerSendBtn');
-  if(hBtn){ hBtn.title = name; hBtn.style.background = 'var(--green)'; }
-  // Immediately show preview so user sees it worked
+  selectSmsContactSilent(name, tel);
   showSmsPreview();
 }
 
