@@ -987,12 +987,23 @@ function getSmsText(hrs){
 
 
 
+// In-memory fallback for Safari/htmlpreview where localStorage may be blocked
+let _smsContactMem = null;
 function getSmsCurrentContact(){
-  try { return JSON.parse(localStorage.getItem('wh_sms_contact') || 'null'); } catch(e){ return null; }
+  if(_smsContactMem) return _smsContactMem;
+  try { const v=localStorage.getItem('wh_sms_contact'); if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;} } catch(e){}
+  try { const v=sessionStorage.getItem('wh_sms_contact'); if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;} } catch(e){}
+  return null;
 }
 function setSmsCurrentContact(c){
+  _smsContactMem = c;
   try { localStorage.setItem('wh_sms_contact', JSON.stringify(c)); } catch(e){}
-  try { localStorage.setItem('wh_sms_last', c ? c.name : ''); } catch(e){}
+  try { sessionStorage.setItem('wh_sms_contact', JSON.stringify(c)); } catch(e){}
+}
+function clearSmsCurrentContact(){
+  _smsContactMem = null;
+  try { clearSmsCurrentContact(); } catch(e){}
+  try { sessionStorage.removeItem('wh_sms_contact'); } catch(e){}
 }
 function isMobile(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -1215,8 +1226,8 @@ function showSmsPickOverlay(){
     const delBtn = document.createElement('button');
     delBtn.style.cssText = 'border:none;background:#ff3b30;color:#fff;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;';
     delBtn.textContent = isRU ? 'Удалить' : 'Remove';
-    delBtn.addEventListener('touchend', function(e){ e.preventDefault(); localStorage.removeItem('wh_sms_contact'); updateSmsBtn(); ov.remove(); });
-    delBtn.addEventListener('click', function(){ localStorage.removeItem('wh_sms_contact'); updateSmsBtn(); ov.remove(); });
+    delBtn.addEventListener('touchend', function(e){ e.preventDefault(); clearSmsCurrentContact(); updateSmsBtn(); ov.remove(); });
+    delBtn.addEventListener('click', function(){ clearSmsCurrentContact(); updateSmsBtn(); ov.remove(); });
     currRow.appendChild(curAv);
     currRow.appendChild(curInfo);
     currRow.appendChild(delBtn);
@@ -1333,6 +1344,11 @@ function selectSmsContact(name, tel){
   setSmsCurrentContact({name, tel: tel||''});
   saveToSmsRecent({name, tel: tel||''});
   updateSmsBtn();
+  // Update header send button
+  const hBtn = document.getElementById('headerSendBtn');
+  if(hBtn){ hBtn.title = name; hBtn.style.background = 'var(--green)'; }
+  // Immediately show preview so user sees it worked
+  showSmsPreview();
 }
 
 
@@ -2111,6 +2127,17 @@ injectManifest();
 registerSW();
 applyLang();
 render();
+// Update header send button to reflect saved contact on startup
+(function(){
+  const contact = getSmsCurrentContact();
+  const btn = document.getElementById('headerSendBtn');
+  if(btn){
+    if(contact && contact.name){
+      btn.title = contact.name;
+      btn.style.background = 'var(--green)';
+    }
+  }
+})();
 
 setTimeout(checkMonthlyBackupReminder, 3000);
 </script>
