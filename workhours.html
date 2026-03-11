@@ -1205,7 +1205,7 @@ function getBiweekly(){
   const cur=new Date(mon);
   for(let i=0;i<14;i++){
     const wd=cur.getDay()===0?6:cur.getDay()-1;
-    if(wd<=4){const h=db[K(cur.getFullYear(),cur.getMonth(),cur.getDate())];if(h>0){total+=h;days++;}}
+    const h=db[K(cur.getFullYear(),cur.getMonth(),cur.getDate())];if(h>0){total+=h;days++;}
     cur.setDate(cur.getDate()+1);
   }
   const p=dt=>`${dt.getDate()} - ${String(dt.getMonth()+1).padStart(2,'0')}`;
