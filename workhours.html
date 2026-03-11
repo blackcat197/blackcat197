@@ -989,66 +989,36 @@ function getSmsText(hrs){
 
 
 
-// ── SMS CONTACT STORAGE ──
-// Uses IndexedDB as primary (persists across PWA restarts even when localStorage is limited)
-// Falls back to localStorage / sessionStorage
+// ── SMS CONTACT STORAGE ── simple & reliable
 let _smsContactMem = null;
-let _idb = null;
-
-function _openIDB(){
-  return new Promise(function(res){
-    if(_idb){res(_idb);return;}
-    try{
-      const r=indexedDB.open('whc',1);
-      r.onupgradeneeded=function(e){e.target.result.createObjectStore('kv');};
-      r.onsuccess=function(e){_idb=e.target.result;res(_idb);};
-      r.onerror=function(){res(null);};
-    }catch(e){res(null);}
-  });
-}
-function _idbSet(k,v){_openIDB().then(function(d){if(!d)return;try{d.transaction('kv','readwrite').objectStore('kv').put(v,k);}catch(e){}});}
-function _idbGet(k,cb){_openIDB().then(function(d){if(!d){cb(null);return;}try{var r=d.transaction('kv','readonly').objectStore('kv').get(k);r.onsuccess=function(){cb(r.result||null);};r.onerror=function(){cb(null);};}catch(e){cb(null);}});}
-function _idbDel(k){_openIDB().then(function(d){if(!d)return;try{d.transaction('kv','readwrite').objectStore('kv').delete(k);}catch(e){}});}
 
 function getSmsCurrentContact(){
   if(_smsContactMem && _smsContactMem.name) return _smsContactMem;
-  // Try all sync sources
-  const sources = [];
-  try{ const v=localStorage.getItem('wh_c'); if(v) sources.push(JSON.parse(v)); }catch(e){}
-  try{ const v=sessionStorage.getItem('wh_c'); if(v) sources.push(JSON.parse(v)); }catch(e){}
-  if(db && db.__smsContact) sources.push(db.__smsContact);
-  for(const c of sources){ if(c && c.name){ _smsContactMem=c; return c; } }
+  try{
+    const v = localStorage.getItem('wh_c');
+    if(v){
+      const obj = JSON.parse(v);
+      if(obj && typeof obj.name === 'string' && obj.name){
+        _smsContactMem = obj;
+        return obj;
+      }
+    }
+  }catch(e){}
   return null;
 }
 
 function setSmsCurrentContact(c){
-  _smsContactMem = c;
-  try{ localStorage.setItem('wh_c', JSON.stringify(c)); }catch(e){}
-  try{ sessionStorage.setItem('wh_c', JSON.stringify(c)); }catch(e){}
-  if(db){ db.__smsContact = c; try{ localStorage.setItem('wh4', JSON.stringify(db)); }catch(e){} }
-  _idbSet('wh_c', c);
+  if(!c || !c.name) return;
+  _smsContactMem = {name: String(c.name), tel: String(c.tel||'')};
+  try{ localStorage.setItem('wh_c', JSON.stringify(_smsContactMem)); }catch(e){}
 }
 
 function clearSmsCurrentContact(){
   _smsContactMem = null;
   try{ localStorage.removeItem('wh_c'); }catch(e){}
-  try{ sessionStorage.removeItem('wh_c'); }catch(e){}
-  if(db){ delete db.__smsContact; sv(); }
-  _idbDel('wh_c');
 }
 
-function _loadContactFromIDB(){
-  _idbGet('wh_c', function(c){
-    if(c && c.name && !_smsContactMem){
-      _smsContactMem = c;
-      if(db) db.__smsContact = c;
-      try{ localStorage.setItem('wh_c', JSON.stringify(c)); }catch(e){}
-      updateSmsBtn();
-      var btn = document.getElementById('headerSendBtn');
-      if(btn){ btn.textContent = '📤 ' + c.name; }
-    }
-  });
-}
+function _loadContactFromIDB(){ /* contact loaded synchronously in getSmsCurrentContact */ }
 function isMobile(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 }
@@ -1079,16 +1049,19 @@ function updateSmsBtn(){
   const mainSub  = document.getElementById('smsMainSub');
   const contact = getSmsCurrentContact();
 
+  const hBtn = document.getElementById('headerSendBtn');
   if(contact && contact.name){
     if(mainBtn){ mainBtn.className='sms-main-btn'; mainBtn.disabled=false; }
     if(mainName){ mainName.textContent = contact.name; mainName.style.color='#fff'; }
     if(mainSub){ mainSub.textContent = isRU ? '📤 Нажмите чтобы отправить' : '📤 Tap to send'; mainSub.style.color='rgba(255,255,255,0.8)'; }
     document.getElementById('smsMainArrow').textContent = '📤';
+    if(hBtn) hBtn.textContent = '📤 ' + contact.name;
   } else {
     if(mainBtn){ mainBtn.className='sms-main-btn no-contact'; mainBtn.disabled=false; }
     if(mainName){ mainName.textContent = isRU ? 'Выбрать контакт' : 'Choose contact'; mainName.style.color='var(--muted)'; }
     if(mainSub){ mainSub.textContent = isRU ? 'Нажмите чтобы выбрать' : 'Tap to select'; mainSub.style.color='var(--muted)'; }
     document.getElementById('smsMainArrow').textContent = '›';
+    if(hBtn) hBtn.textContent = '📤 Send';
   }
 }
 
@@ -1434,9 +1407,7 @@ function selectSmsContactSilent(name, tel){
   const c = {name: name, tel: tel||''};
   setSmsCurrentContact(c);
   saveToSmsRecent(c);
-  updateSmsBtn();
-  const hBtn = document.getElementById('headerSendBtn');
-  if(hBtn){ hBtn.textContent = '📤 ' + name; }
+  updateSmsBtn(); // this also updates header button
 }
 
 function selectSmsContact(name, tel){
@@ -2222,14 +2193,9 @@ applyLang();
 render();
 
 // Load contact synchronously (localStorage/sessionStorage/db) then async IDB
-(function initContact(){
-  const c = getSmsCurrentContact();
-  const btn = document.getElementById('headerSendBtn');
-  if(c && c.name && btn){
-    btn.textContent = '📤 ' + c.name;
-  }
-  _loadContactFromIDB();
-})();
+// Load contact and update all UI
+updateSmsBtn();
+_loadContactFromIDB();
 
 setTimeout(checkMonthlyBackupReminder, 3000);
 </script>
