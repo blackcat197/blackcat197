@@ -458,6 +458,30 @@ body {
   cursor:pointer; flex-shrink:0; display:flex; align-items:center; justify-content:center;
 }
 .sms-save-name-btn:active { opacity:0.8; }
+.sms-contacts-list {
+  background:var(--surface); border-radius:14px; overflow:hidden;
+  margin-bottom:10px; box-shadow:0 1px 4px rgba(0,0,0,0.08);
+}
+.sms-contact-item {
+  display:flex; align-items:center; gap:12px; padding:13px 16px;
+  border-bottom:1px solid var(--border); cursor:pointer; transition:background 0.1s;
+}
+.sms-contact-item:last-child { border-bottom:none; }
+.sms-contact-item:active { background:var(--surface2); }
+.sms-contact-item.active { background:rgba(0,122,255,0.07); }
+.sms-contact-avatar {
+  width:36px; height:36px; border-radius:50%; background:var(--accent);
+  display:flex; align-items:center; justify-content:center;
+  font-size:16px; font-weight:700; color:#fff; flex-shrink:0;
+}
+.sms-contact-item.active .sms-contact-avatar { background:var(--green); }
+.sms-contact-item-name { flex:1; font-size:15px; font-weight:600; color:var(--text); }
+.sms-contact-item-check { font-size:16px; color:var(--green); }
+.sms-contact-del {
+  border:none; background:none; font-size:16px; color:var(--muted);
+  cursor:pointer; padding:4px; line-height:1;
+}
+.sms-contact-del:active { color:var(--accent2); }
 .sms-send-btn {
   width:100%; border:none; border-radius:14px; padding:15px;
   background:var(--green); font-size:16px; font-weight:800; color:#fff;
@@ -729,9 +753,11 @@ body {
           </div>
           <!-- Edit recipient inline -->
           <div class="sms-edit-row" id="smsEditRow" style="display:none">
-            <input class="sms-edit-input" id="smsEditInput" type="text" placeholder="Name..." />
+            <input class="sms-edit-input" id="smsEditInput" type="text" placeholder="Name..." onkeydown="if(event.key==='Enter')saveSmsRecipient()" />
             <button class="sms-save-name-btn" onclick="saveSmsRecipient()">✓</button>
           </div>
+          <!-- Contacts list -->
+          <div class="sms-contacts-list" id="smsContactsList" style="display:none"></div>
 
           <!-- Send button -->
           <button class="sms-send-btn" id="smsSendBtn" onclick="sendSmsInvoice()">
@@ -1049,19 +1075,91 @@ function updateSmsBtn(){
   } catch(e){}
 }
 
-function toggleSmsEdit(){
-  const row = document.getElementById('smsEditRow');
-  const input = document.getElementById('smsEditInput');
+// ── SMS CONTACTS ──
+function loadSmsContacts(){
+  try { return JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){ return []; }
+}
+function saveSmsContacts(list){
+  try { localStorage.setItem('wh_sms_contacts', JSON.stringify(list)); } catch(e){}
+}
+function getSmsCurrentContact(){
+  try { return localStorage.getItem('wh_sms_last') || ''; } catch(e){ return ''; }
+}
+
+function renderSmsContactsList(){
+  const el = document.getElementById('smsContactsList');
+  if(!el) return;
+  const contacts = loadSmsContacts();
+  const current = getSmsCurrentContact();
+  const isRU = lang === 'ru';
+  el.innerHTML = '';
+
+  contacts.forEach((name, i) => {
+    const item = document.createElement('div');
+    item.className = 'sms-contact-item' + (name === current ? ' active' : '');
+    const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+    item.innerHTML = `
+      <div class="sms-contact-avatar">${initials}</div>
+      <div class="sms-contact-item-name">${name}</div>
+      ${name === current ? '<span class="sms-contact-item-check">✓</span>' : ''}
+      <button class="sms-contact-del" onclick="deleteSmsContact(${i},event)">✕</button>`;
+    item.addEventListener('click', ()=>selectSmsContact(name));
+    el.appendChild(item);
+  });
+
+  // Add new contact row
+  const addRow = document.createElement('div');
+  addRow.className = 'sms-contact-item';
+  addRow.style.cssText = 'color:var(--accent);font-weight:700;';
+  addRow.innerHTML = `<div class="sms-contact-avatar" style="background:var(--surface2);color:var(--accent);font-size:22px;">＋</div>
+    <div class="sms-contact-item-name" style="color:var(--accent)">${isRU ? 'Добавить контакт' : 'Add contact'}</div>`;
+  addRow.addEventListener('click', ()=>showSmsAddInput());
+  el.appendChild(addRow);
+}
+
+function selectSmsContact(name){
+  try { localStorage.setItem('wh_sms_last', name); } catch(e){}
+  updateSmsBtn();
+  // close list
+  const list = document.getElementById('smsContactsList');
   const btn = document.getElementById('smsEditBtn');
-  if(row.style.display === 'none'){
-    let current = '';
-    try { current = localStorage.getItem('wh_sms_last') || ''; } catch(e){}
-    input.value = current;
-    row.style.display = 'flex';
+  if(list) list.style.display = 'none';
+  if(btn) btn.textContent = '✏️';
+}
+
+function deleteSmsContact(idx, e){
+  e.stopPropagation();
+  const contacts = loadSmsContacts();
+  const removed = contacts.splice(idx, 1)[0];
+  saveSmsContacts(contacts);
+  // if was current, clear
+  if(getSmsCurrentContact() === removed){
+    try { localStorage.removeItem('wh_sms_last'); } catch(e){}
+    updateSmsBtn();
+  }
+  renderSmsContactsList();
+}
+
+function showSmsAddInput(){
+  const editRow = document.getElementById('smsEditRow');
+  const input = document.getElementById('smsEditInput');
+  input.value = '';
+  editRow.style.display = 'flex';
+  setTimeout(()=>input.focus(), 50);
+}
+
+function toggleSmsEdit(){
+  const list = document.getElementById('smsContactsList');
+  const btn = document.getElementById('smsEditBtn');
+  const editRow = document.getElementById('smsEditRow');
+  if(list.style.display === 'none'){
+    renderSmsContactsList();
+    list.style.display = 'block';
+    editRow.style.display = 'none';
     btn.textContent = '✕';
-    setTimeout(()=>input.focus(), 50);
   } else {
-    row.style.display = 'none';
+    list.style.display = 'none';
+    editRow.style.display = 'none';
     btn.textContent = '✏️';
   }
 }
@@ -1070,13 +1168,15 @@ function saveSmsRecipient(){
   const input = document.getElementById('smsEditInput');
   const name = input.value.trim();
   if(name){
+    // Add to contacts list if not already there
+    const contacts = loadSmsContacts();
+    if(!contacts.includes(name)){ contacts.push(name); saveSmsContacts(contacts); }
     try { localStorage.setItem('wh_sms_last', name); } catch(e){}
     updateSmsBtn();
   }
-  const row = document.getElementById('smsEditRow');
-  const btn = document.getElementById('smsEditBtn');
-  if(row) row.style.display = 'none';
-  if(btn) btn.textContent = '✏️';
+  const editRow = document.getElementById('smsEditRow');
+  if(editRow) editRow.style.display = 'none';
+  renderSmsContactsList();
 }
 
 function editSmsRecipient(){ toggleSmsEdit(); }
