@@ -1019,17 +1019,6 @@ function updateSmsBtn(){
   if(smsHours === null) smsHours = getSmsHours();
   if(hrsNumEl) hrsNumEl.textContent = (smsHours % 1 === 0 ? smsHours.toFixed(0) : smsHours.toFixed(1));
 
-  if(!isMobile()){
-    // Disable — not a phone
-    if(mainBtn){ mainBtn.className='sms-main-btn disabled-sms'; mainBtn.disabled=true; }
-    if(mainName) mainName.textContent = isRU ? 'SMS недоступно' : 'SMS not available';
-    if(mainSub)  mainSub.textContent  = isRU ? 'Только на мобильном' : 'Mobile only';
-    if(mainName) mainName.style.color = 'var(--muted)';
-    if(mainSub)  mainSub.style.color  = 'var(--muted)';
-    if(changeBtn){ changeBtn.disabled=true; changeBtn.style.opacity='0.3'; }
-    return;
-  }
-
   if(changeBtn){ changeBtn.disabled=false; changeBtn.style.opacity='1'; }
 
   const contact = getSmsCurrentContact();
@@ -1058,7 +1047,6 @@ function smsBtnTapped(){
 }
 
 async function smsPickContact(){
-  if(!isMobile()) return;
   // Try native Contact Picker (Android Chrome only)
   if(smsPickSupported()){
     try {
@@ -1194,7 +1182,6 @@ function selectSmsContact(name, tel){
 
 
 function sendSmsInvoice(){
-  if(!isMobile()) return;
   if(smsHours === null) smsHours = getSmsHours();
   const text = getSmsText(smsHours);
   const contact = getSmsCurrentContact();
@@ -1205,9 +1192,6 @@ function sendSmsInvoice(){
 
 
 function openGuide(guideLang){
-  // Update active button
-  document.getElementById('guideLangEN').classList.toggle('active', guideLang==='en');
-  document.getElementById('guideLangRU').classList.toggle('active', guideLang==='ru');
   const urls={
     en:'https://htmlpreview.github.io/?https://github.com/blackcat197/blackcat197/blob/main/install-guide.html',
     ru:'https://htmlpreview.github.io/?https://github.com/blackcat197/blackcat197/blob/main/install-guide-ru.html',
