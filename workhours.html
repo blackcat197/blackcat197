@@ -994,29 +994,36 @@ let _smsContactMem = null;
 
 function getSmsCurrentContact(){
   if(_smsContactMem && _smsContactMem.name) return _smsContactMem;
-  try{
-    const v = localStorage.getItem('wh_c');
-    if(v){
-      const obj = JSON.parse(v);
-      if(obj && typeof obj.name === 'string' && obj.name){
-        _smsContactMem = obj;
-        return obj;
+  for(const store of [localStorage, sessionStorage]){
+    try{
+      const v = store.getItem('wh_c');
+      if(v){
+        const obj = JSON.parse(v);
+        if(obj && obj.name && typeof obj.name === 'string'){
+          _smsContactMem = obj;
+          return obj;
+        }
       }
-    }
-  }catch(e){}
+    }catch(e){}
+  }
   return null;
 }
 
 function setSmsCurrentContact(c){
   if(!c || !c.name) return;
   _smsContactMem = {name: String(c.name), tel: String(c.tel||'')};
-  try{ localStorage.setItem('wh_c', JSON.stringify(_smsContactMem)); }catch(e){}
+  const json = JSON.stringify(_smsContactMem);
+  try{ localStorage.setItem('wh_c', json); }catch(e){}
+  try{ sessionStorage.setItem('wh_c', json); }catch(e){}
 }
 
 function clearSmsCurrentContact(){
   _smsContactMem = null;
   try{ localStorage.removeItem('wh_c'); }catch(e){}
+  try{ sessionStorage.removeItem('wh_c'); }catch(e){}
 }
+
+
 
 function _loadContactFromIDB(){ /* contact loaded synchronously in getSmsCurrentContact */ }
 function isMobile(){
@@ -1132,9 +1139,8 @@ function showSmsPreview(){
     nameInp.placeholder = isRU ? 'Имя...' : 'Name...';
     nameInp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:12px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
     // Prefill from recent if any
-    let recents = [];
-    recents = getSmsRecents();
-    if(recents.length > 0) nameInp.value = recents[0].name;
+    let recents = getSmsRecents();
+    if(recents.length > 0 && recents[0] && recents[0].name) nameInp.value = recents[0].name;
     const addSendBtn = document.createElement('button');
     addSendBtn.style.cssText = 'border:none;border-radius:12px;background:#34c759;color:#fff;font-size:13px;font-weight:800;padding:0 14px;cursor:pointer;white-space:nowrap;';
     addSendBtn.textContent = 'Add & Send';
@@ -2093,8 +2099,8 @@ function injectManifest(){
 function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   const swCode=`
-self.addEventListener('install',e=>self.skipWaiting());
-self.addEventListener('activate',e=>e.waitUntil(clients.claim()));
+const V='v9';self.addEventListener('install',e=>self.skipWaiting());
+self.addEventListener('activate',e=>e.waitUntil(caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k)))).then(()=>clients.claim())));
 self.addEventListener('fetch',e=>e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request).catch(()=>new Response('')))));
 
 // Handle notification click — open app
