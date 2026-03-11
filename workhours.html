@@ -1172,93 +1172,157 @@ function showSmsPickOverlay(){
   const isRU = lang === 'ru';
   let saved = [];
   try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+  const currentContact = getSmsCurrentContact();
 
   const ex = document.getElementById('_smsOv');
   if(ex) ex.remove();
 
   const ov = document.createElement('div');
   ov.id = '_smsOv';
-  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:flex-end;';
+  ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:9999;display:flex;align-items:flex-end;';
 
   const sheet = document.createElement('div');
-  sheet.style.cssText = 'background:#f2f2f7;border-radius:24px 24px 0 0;width:100%;max-height:80vh;display:flex;flex-direction:column;';
+  sheet.style.cssText = 'background:#f2f2f7;border-radius:24px 24px 0 0;width:100%;max-height:85vh;display:flex;flex-direction:column;overflow:hidden;';
 
   // Header
   const hdr = document.createElement('div');
-  hdr.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;padding:14px 20px;border-bottom:1px solid #e8e8e8;flex-shrink:0;';
+  hdr.style.cssText = 'background:#fff;border-radius:24px 24px 0 0;padding:14px 20px 16px;border-bottom:1px solid #e8e8e8;flex-shrink:0;';
   hdr.innerHTML = '<div style="width:36px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 14px;"></div>'
     + '<div style="font-size:19px;font-weight:800;color:#111;">' + (isRU?'Получатель SMS':'SMS Recipient') + '</div>'
-    + '<div style="font-size:13px;color:#888;margin-top:3px;">' + (isRU?'Выберите или введите имя':'Select or enter a name') + '</div>';
+    + '<div style="font-size:13px;color:#888;margin-top:3px;">' + (isRU?'Выберите контакт':'Select a contact') + '</div>';
   sheet.appendChild(hdr);
 
-  // Scroll body
   const body = document.createElement('div');
   body.style.cssText = 'overflow-y:auto;flex:1;background:#fff;';
+
+  // Current contact row with Remove
+  if(currentContact && currentContact.name){
+    const currLbl = document.createElement('div');
+    currLbl.style.cssText = 'font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;padding:14px 18px 6px;';
+    currLbl.textContent = isRU ? 'Текущий контакт' : 'Current contact';
+    body.appendChild(currLbl);
+    const currRow = document.createElement('div');
+    currRow.style.cssText = 'display:flex;align-items:center;gap:12px;padding:12px 18px;border-bottom:1px solid #f2f2f2;';
+    const initCur = currentContact.name.trim().split(' ').filter(Boolean).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2)||'?';
+    const curAv = document.createElement('div');
+    curAv.style.cssText = 'width:42px;height:42px;border-radius:50%;background:#34c759;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;';
+    curAv.textContent = initCur;
+    const curInfo = document.createElement('div');
+    curInfo.style.cssText = 'flex:1;';
+    curInfo.innerHTML = '<div style="font-size:16px;font-weight:700;color:#111;">'+currentContact.name+'</div>'
+      + (currentContact.tel ? '<div style="font-size:12px;color:#888;">'+currentContact.tel+'</div>' : '')
+      + '<div style="font-size:12px;color:#34c759;font-weight:600;margin-top:2px;">'+(isRU?'✓ Выбран':'✓ Selected')+'</div>';
+    const delBtn = document.createElement('button');
+    delBtn.style.cssText = 'border:none;background:#ff3b30;color:#fff;border-radius:10px;padding:9px 16px;font-size:14px;font-weight:700;cursor:pointer;flex-shrink:0;';
+    delBtn.textContent = isRU ? 'Удалить' : 'Remove';
+    delBtn.addEventListener('touchend', function(e){ e.preventDefault(); localStorage.removeItem('wh_sms_contact'); updateSmsBtn(); ov.remove(); });
+    delBtn.addEventListener('click', function(){ localStorage.removeItem('wh_sms_contact'); updateSmsBtn(); ov.remove(); });
+    currRow.appendChild(curAv);
+    currRow.appendChild(curInfo);
+    currRow.appendChild(delBtn);
+    body.appendChild(currRow);
+  }
+
+  // Android: native Contact Picker button
+  if(smsPickSupported()){
+    const pickBtn = document.createElement('button');
+    pickBtn.style.cssText = 'display:flex;align-items:center;gap:14px;width:100%;padding:16px 18px;border:none;background:#fff;border-bottom:1px solid #f2f2f2;cursor:pointer;text-align:left;';
+    pickBtn.innerHTML = '<div style="width:42px;height:42px;border-radius:50%;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">📒</div>'
+      + '<div style="flex:1;"><div style="font-size:16px;font-weight:700;color:#007aff;">'+(isRU?'Открыть контакты':'Open Contacts')+'</div>'
+      + '<div style="font-size:12px;color:#888;">'+(isRU?'Выбрать из телефонной книги':'Pick from phone book')+'</div></div>'
+      + '<div style="color:#ccc;font-size:20px;">›</div>';
+    pickBtn.addEventListener('click', async function(){
+      ov.remove();
+      try {
+        const results = await navigator.contacts.select(['name','tel'], {multiple:false});
+        if(results && results.length > 0){
+          const c = results[0];
+          const name = (c.name && c.name[0]) || '';
+          const tel  = (c.tel  && c.tel[0])  || '';
+          if(name){ selectSmsContact(name, tel); }
+        }
+      } catch(e){}
+    });
+    body.appendChild(pickBtn);
+  } else {
+    // iPhone: info row — contacts picked via Messages app
+    const infoRow = document.createElement('div');
+    infoRow.style.cssText = 'display:flex;align-items:flex-start;gap:12px;padding:14px 18px;border-bottom:1px solid #f2f2f2;background:#fff8e8;';
+    infoRow.innerHTML = '<div style="font-size:22px;flex-shrink:0;">ℹ️</div>'
+      + '<div style="font-size:13px;color:#555;line-height:1.5;">'
+      + (isRU
+        ? 'На iPhone контакт выбирается в приложении <b>Сообщения</b>. Нажмите «Отправить» — откроется окно SMS, выберите там получателя и сохраните его ниже.'
+        : 'On iPhone, pick the recipient inside the <b>Messages</b> app. Tap Send — an SMS window opens, choose the contact there, then save them below.')
+      + '</div>';
+    body.appendChild(infoRow);
+  }
 
   // Recent contacts
   if(saved.length > 0){
     const lbl = document.createElement('div');
-    lbl.style.cssText = 'font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;padding:12px 18px 6px;';
+    lbl.style.cssText = 'font-size:11px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;padding:14px 18px 6px;';
     lbl.textContent = isRU ? 'Недавние' : 'Recent';
     body.appendChild(lbl);
-
     saved.forEach(function(c){
-      const initials = c.name.trim().split(' ').filter(Boolean).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2) || '?';
+      const initials = c.name.trim().split(' ').filter(Boolean).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2)||'?';
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:13px 18px;border-bottom:1px solid #f2f2f2;cursor:pointer;';
-      row.innerHTML = '<div style="width:40px;height:40px;border-radius:50%;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;">' + initials + '</div>'
-        + '<div style="flex:1;"><div style="font-size:16px;font-weight:600;color:#111;">' + c.name + '</div>' + (c.tel ? '<div style="font-size:12px;color:#888;">' + c.tel + '</div>' : '') + '</div>'
-        + '<div style="color:#ccc;font-size:20px;">›</div>';
+      row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 18px;border-bottom:1px solid #f2f2f2;cursor:pointer;';
+      const av = document.createElement('div');
+      av.style.cssText = 'width:42px;height:42px;border-radius:50%;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:800;color:#fff;flex-shrink:0;';
+      av.textContent = initials;
+      const info = document.createElement('div');
+      info.style.cssText = 'flex:1;';
+      info.innerHTML = '<div style="font-size:16px;font-weight:600;color:#111;">'+c.name+'</div>'
+        +(c.tel?'<div style="font-size:12px;color:#888;">'+c.tel+'</div>':'');
+      const arr = document.createElement('div');
+      arr.style.cssText = 'color:#ccc;font-size:20px;';
+      arr.textContent = '›';
+      row.appendChild(av); row.appendChild(info); row.appendChild(arr);
+      function pickThis(e){ if(e) e.preventDefault(); selectSmsContact(c.name, c.tel||''); }
+      row.addEventListener('touchend', pickThis);
       row.addEventListener('click', function(){ selectSmsContact(c.name, c.tel||''); });
       body.appendChild(row);
     });
   }
 
-  // Manual input section
-  const inputWrap = document.createElement('div');
-  inputWrap.style.cssText = 'padding:14px 18px 8px;';
-  const inputLbl = document.createElement('div');
-  inputLbl.style.cssText = 'font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;';
-  inputLbl.textContent = isRU ? 'Добавить контакт' : 'Add contact';
-  inputWrap.appendChild(inputLbl);
+  // iPhone: manual name save after sending
+  if(!smsPickSupported()){
+    const saveSect = document.createElement('div');
+    saveSect.style.cssText = 'padding:14px 18px 10px;border-top:1px solid #f2f2f2;';
+    const saveLbl = document.createElement('div');
+    saveLbl.style.cssText = 'font-size:12px;font-weight:700;color:#999;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:10px;';
+    saveLbl.textContent = isRU ? 'Сохранить получателя' : 'Save recipient name';
+    saveSect.appendChild(saveLbl);
+    const saveRow = document.createElement('div');
+    saveRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.placeholder = isRU ? 'Имя контакта...' : 'Contact name...';
+    inp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:12px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
+    function doSave(){ const v = inp.value.trim(); if(v) selectSmsContact(v, ''); }
+    inp.addEventListener('keydown', function(e){ if(e.key==='Enter') doSave(); });
+    const saveBtn = document.createElement('button');
+    saveBtn.style.cssText = 'width:48px;height:48px;border:none;border-radius:12px;background:#007aff;color:#fff;font-size:20px;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;';
+    saveBtn.textContent = '✓';
+    saveBtn.addEventListener('click', doSave);
+    saveRow.appendChild(inp); saveRow.appendChild(saveBtn);
+    saveSect.appendChild(saveRow);
+    body.appendChild(saveSect);
+  }
 
-  const inputRow = document.createElement('div');
-  inputRow.style.cssText = 'display:flex;gap:8px;align-items:center;';
-
-  const inp = document.createElement('input');
-  inp.id = '_smsNameInp';
-  inp.type = 'text';
-  inp.placeholder = isRU ? 'Имя...' : 'Name...';
-  inp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:13px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
-  inp.addEventListener('keydown', function(e){ if(e.key==='Enter') doSaveManual(); });
-
-  const btn = document.createElement('button');
-  btn.style.cssText = 'width:48px;height:48px;border:none;border-radius:12px;background:#007aff;color:#fff;font-size:22px;cursor:pointer;flex-shrink:0;';
-  btn.textContent = '✓';
-  btn.addEventListener('click', doSaveManual);
-
-  function doSaveManual(){ selectSmsContact(inp.value.trim(), ''); }
-
-  inputRow.appendChild(inp);
-  inputRow.appendChild(btn);
-  inputWrap.appendChild(inputRow);
-  body.appendChild(inputWrap);
   sheet.appendChild(body);
-
-  // Cancel button
   const footer = document.createElement('div');
   footer.style.cssText = 'padding:10px 18px calc(18px + env(safe-area-inset-bottom));background:#f2f2f7;flex-shrink:0;';
   const cancelBtn = document.createElement('button');
-  cancelBtn.style.cssText = 'width:100%;padding:15px;border:none;border-radius:14px;background:#fff;font-size:16px;font-weight:600;color:#666;cursor:pointer;';
+  cancelBtn.style.cssText = 'width:100%;padding:15px;border:none;border-radius:14px;background:#fff;font-size:16px;font-weight:600;color:#555;cursor:pointer;';
   cancelBtn.textContent = isRU ? 'Отмена' : 'Cancel';
+  cancelBtn.addEventListener('touchend', function(e){ e.preventDefault(); ov.remove(); });
   cancelBtn.addEventListener('click', function(){ ov.remove(); });
   footer.appendChild(cancelBtn);
   sheet.appendChild(footer);
-
   ov.appendChild(sheet);
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
-  setTimeout(function(){ inp.focus(); }, 200);
 }
 
 function selectSmsContact(name, tel){
