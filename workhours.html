@@ -537,7 +537,7 @@ body {
 </div>
 
 <div class="biweekly">
-  <div class="bw-label">Итого за две недели (пн — пт)</div>
+  <div class="bw-label">Итого за две недели</div>
   <div class="bw-main">
     <div>
       <div class="bw-range" id="bwRange">—</div>
@@ -781,7 +781,7 @@ const LANG = {
     months:['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'],
     monthsS:['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек'],
     days:['пн','вт','ср','чт','пт','сб','вс'],
-    bwLabel:'Итого за две недели (пн — пт)',
+    bwLabel:'Итого за две недели',
     moLabel:'Итого за месяц',
     workDays:'рабочих дней', workDn:'рабочих дн.',
     hrs:'часа', hrsS:'Часов',
@@ -828,7 +828,7 @@ const LANG = {
     months:['January','February','March','April','May','June','July','August','September','October','November','December'],
     monthsS:['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'],
     days:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],
-    bwLabel:'Total biweekly (Mon — Fri)',
+    bwLabel:'Total biweekly',
     moLabel:'Total for month',
     workDays:'working days', workDn:'working days',
     hrs:'hr', hrsS:'hrs',
@@ -1195,34 +1195,71 @@ const fmt=h=>{const L=LANG[lang];return `${fmtNum(h)}<span class="unit"> ${L.hrs
 const fmtBanner=h=>{const L=LANG[lang];return `${fmtNum(h)}<span class="unit-banner"> ${L.hrsS}</span>`;};
 
 // ── BIWEEKLY ──
-function getBiweekly(){
-  const d=new Date(now);
-  const w=d.getDay()===0?6:d.getDay()-1;
-  d.setDate(d.getDate()-w);
-  const mon=new Date(d), fri=new Date(d);
-  fri.setDate(fri.getDate()+11);
-  let total=0,days=0;
-  const cur=new Date(mon);
-  for(let i=0;i<14;i++){
-    const wd=cur.getDay()===0?6:cur.getDay()-1;
-    const h=db[K(cur.getFullYear(),cur.getMonth(),cur.getDate())];if(h>0){total+=h;days++;}
-    cur.setDate(cur.getDate()+1);
+function getPeriodStart(y, m, from){
+  // from = 1 or 16
+  // If 'from' day is Mon-Fri → start from it (even if Fri, it counts)
+  // If Sat/Sun → skip to next Monday
+  // But if it's the 1st and it falls on Fri → still start from 1
+  // Rule: start counting from 'from', include ALL days with hours recorded
+  const wd = new Date(y,m,from).getDay(); // 0=Sun,6=Sat
+  if(from === 1) return 1; // 1st always starts the first half
+  // For 16: find first Monday >= 16
+  for(let d=from; d<=dim(y,m); d++){
+    if(new Date(y,m,d).getDay() === 1) return d;
   }
-  const p=dt=>`${dt.getDate()} - ${String(dt.getMonth()+1).padStart(2,'0')}`;
-  return{range:`${p(mon)} / ${p(fri)}`,total,days};
+  return from;
+}
+
+function getBiweekly(){
+  // Use currently viewed month (cy/cm), show the active period
+  const y = cy, m = cm;
+  const lastDay = dim(y, m);
+  const sh2 = getPeriodStart(y, m, 16); // first Mon >= 16
+
+  // Determine which period is "active" based on today
+  const todayY = now.getFullYear(), todayM = now.getMonth(), todayD = now.getDate();
+  let fromDay, toDay;
+
+  if(y === todayY && m === todayM){
+    // Current month: show the period we are in right now
+    if(todayD <= 15){
+      fromDay = 1; toDay = 15;
+    } else {
+      fromDay = sh2; toDay = lastDay;
+    }
+  } else if(y > todayY || (y === todayY && m > todayM)){
+    // Future month: show first half
+    fromDay = 1; toDay = 15;
+  } else {
+    // Past month: show second half (full month done)
+    fromDay = sh2; toDay = lastDay;
+  }
+
+  // Count ALL recorded hours in period — no weekday filter
+  let total=0, days=0;
+  for(let day=fromDay; day<=toDay; day++){
+    const h = db[K(y, m, day)];
+    if(h > 0){ total += h; days++; }
+  }
+
+  const pad = n => String(n).padStart(2,'0');
+  const mm = pad(m+1);
+  const range = `${fromDay} - ${mm} / ${toDay} - ${mm}`;
+  return { range, total, days };
 }
 
 // ── RENDER ──
 function render(){
   const L=LANG[lang];
   const tot=dim(cy,cm);
+  const sh2 = getPeriodStart(cy, cm, 16); // first Monday >= 16
   document.getElementById('mname').textContent=L.months[cm];
-  document.getElementById('cp2').textContent=`16 — ${tot}`;
-  buildCal('cal1',1,15); buildCal('cal2',16,tot);
+  document.getElementById('cp2').textContent=`${sh2} — ${tot}`;
+  buildCal('cal1',1,15); buildCal('cal2',sh2,tot);
 
   let s1=0,n1=0,s2=0,n2=0;
   for(let d=1;d<=15;d++){const h=db[K(cy,cm,d)];if(h>0){s1+=h;n1++;}}
-  for(let d=16;d<=tot;d++){const h=db[K(cy,cm,d)];if(h>0){s2+=h;n2++;}}
+  for(let d=sh2;d<=tot;d++){const h=db[K(cy,cm,d)];if(h>0){s2+=h;n2++;}}
 
   document.getElementById('c1').innerHTML=fmt(s1);
   document.getElementById('cd1').textContent=n1+' '+L.dn;
@@ -1231,7 +1268,7 @@ function render(){
   document.getElementById('ctot').innerHTML=fmt(s1+s2);
   document.getElementById('cdtot').textContent=(n1+n2)+' '+L.workDn;
   document.getElementById('ss1').innerHTML=s1?fmt(s1):'';
-  document.getElementById('st2').innerHTML=`16 — ${tot} <span class="sec-sum" id="ss2">${s2?fmt(s2):''}</span>`;
+  document.getElementById('st2').innerHTML=`${sh2} — ${tot} <span class="sec-sum" id="ss2">${s2?fmt(s2):''}</span>`;
 
   const bw=getBiweekly();
   document.getElementById('bwRange').textContent=bw.range;
