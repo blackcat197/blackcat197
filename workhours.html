@@ -1008,20 +1008,27 @@ function _idbDel(k){_openIDB().then(function(db){if(!db)return;try{db.transactio
 
 function getSmsCurrentContact(){
   if(_smsContactMem) return _smsContactMem;
+  // 1. Check db object (saved with wh4)
   if(db && db.__smsContact && db.__smsContact.name){_smsContactMem=db.__smsContact;return _smsContactMem;}
-  try{const v=localStorage.getItem('wh_sms_contact');if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;}}catch(e){}
+  // 2. Check dedicated localStorage key
+  try{const v=localStorage.getItem('wh_sms_contact');if(v){const c=JSON.parse(v);if(c&&c.name){_smsContactMem=c;if(db)db.__smsContact=c;return _smsContactMem;}}}catch(e){}
+  // 3. Check sessionStorage
+  try{const v=sessionStorage.getItem('wh_sms_contact');if(v){const c=JSON.parse(v);if(c&&c.name){_smsContactMem=c;if(db)db.__smsContact=c;return _smsContactMem;}}}catch(e){}
   return null;
 }
 function setSmsCurrentContact(c){
   _smsContactMem=c;
+  // Save in all possible storages simultaneously
   if(db){db.__smsContact=c;sv();}
   try{localStorage.setItem('wh_sms_contact',JSON.stringify(c));}catch(e){}
+  try{sessionStorage.setItem('wh_sms_contact',JSON.stringify(c));}catch(e){}
   _idbSet('wh_sms_contact',c);
 }
 function clearSmsCurrentContact(){
   _smsContactMem=null;
   if(db){delete db.__smsContact;sv();}
   try{localStorage.removeItem('wh_sms_contact');}catch(e){}
+  try{sessionStorage.removeItem('wh_sms_contact');}catch(e){}
   _idbDel('wh_sms_contact');
 }
 // Load from IDB on startup (async fallback for when localStorage is blocked)
@@ -1418,8 +1425,9 @@ function showSmsPickOverlay(){
 function selectSmsContactSilent(name, tel){
   name = (name||'').trim();
   if(!name) return;
-  setSmsCurrentContact({name, tel: tel||''});
-  saveToSmsRecent({name, tel: tel||''});
+  const c = {name: name, tel: tel||''};
+  setSmsCurrentContact(c);
+  saveToSmsRecent(c);
   updateSmsBtn();
   const hBtn = document.getElementById('headerSendBtn');
   if(hBtn){ hBtn.title = name; hBtn.style.background = 'var(--green)'; }
@@ -2206,17 +2214,17 @@ injectManifest();
 registerSW();
 applyLang();
 render();
-_loadContactFromIDB();
-// Update header send button to reflect saved contact on startup
-(function(){
-  const contact = getSmsCurrentContact();
+
+// Load contact synchronously (localStorage/sessionStorage/db) then async IDB
+(function initContact(){
+  const c = getSmsCurrentContact(); // tries all sync sources
   const btn = document.getElementById('headerSendBtn');
-  if(btn){
-    if(contact && contact.name){
-      btn.title = contact.name;
-      btn.style.background = 'var(--green)';
-    }
+  if(c && c.name && btn){
+    btn.title = c.name;
+    btn.style.background = 'var(--green)';
   }
+  // Also async IDB fallback
+  _loadContactFromIDB();
 })();
 
 setTimeout(checkMonthlyBackupReminder, 3000);
