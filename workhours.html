@@ -1049,12 +1049,9 @@ function updateSmsBtn(){
 }
 
 function smsBtnTapped(){
-  const contact = getSmsCurrentContact();
-  if(contact && contact.name){
-    showSmsPreview(); // show preview before sending
-  } else {
-    showSmsPickOverlay(); // no contact yet — pick first
-  }
+  const bw = getBiweekly();
+  smsHours = bw.total;
+  showSmsPreview();
 }
 
 function showSmsPreview(){
@@ -1082,18 +1079,61 @@ function showSmsPreview(){
     + '<div style="font-size:19px;font-weight:800;color:#111;">' + (isRU ? 'Проверьте перед отправкой' : 'Review before sending') + '</div>';
   sheet.appendChild(hdr);
 
-  // Content
   const body = document.createElement('div');
   body.style.cssText = 'padding:18px 20px;background:#fff;';
 
-  // Recipient row
-  const recRow = document.createElement('div');
-  recRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:14px;';
-  const initials = contact.name.trim().split(' ').filter(Boolean).map(w=>w[0]||'').join('').toUpperCase().slice(0,2) || '?';
-  recRow.innerHTML = '<div style="width:44px;height:44px;border-radius:50%;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;">' + initials + '</div>'
-    + '<div><div style="font-size:16px;font-weight:700;color:#111;">' + contact.name + '</div>'
-    + '<div style="font-size:12px;color:#888;">' + (isRU ? 'Получатель SMS' : 'SMS recipient') + '</div></div>';
-  body.appendChild(recRow);
+  // Recipient row — shows saved contact OR name input field
+  if(contact && contact.name){
+    const recRow = document.createElement('div');
+    recRow.style.cssText = 'display:flex;align-items:center;gap:10px;margin-bottom:14px;';
+    const initials = contact.name.trim().split(' ').filter(Boolean).map(function(w){return w[0]||'';}).join('').toUpperCase().slice(0,2)||'?';
+    const av = document.createElement('div');
+    av.style.cssText = 'width:44px;height:44px;border-radius:50%;background:#007aff;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:#fff;flex-shrink:0;';
+    av.textContent = initials;
+    const info = document.createElement('div');
+    info.style.cssText = 'flex:1;';
+    info.innerHTML = '<div style="font-size:16px;font-weight:700;color:#111;">' + contact.name + '</div>'
+      + '<div style="font-size:12px;color:#888;">' + (isRU ? 'Получатель SMS' : 'SMS recipient') + '</div>';
+    const changeBtn = document.createElement('button');
+    changeBtn.style.cssText = 'border:none;background:#f0f0f0;border-radius:10px;padding:7px 12px;font-size:13px;font-weight:600;color:#555;cursor:pointer;';
+    changeBtn.textContent = isRU ? 'Сменить' : 'Change';
+    changeBtn.addEventListener('click', function(){ ov.remove(); showSmsPickOverlay(); });
+    recRow.appendChild(av); recRow.appendChild(info); recRow.appendChild(changeBtn);
+    body.appendChild(recRow);
+  } else {
+    // No contact yet — show name input + Add & Send
+    const noContactWrap = document.createElement('div');
+    noContactWrap.style.cssText = 'margin-bottom:14px;';
+    const noLbl = document.createElement('div');
+    noLbl.style.cssText = 'font-size:13px;color:#888;margin-bottom:10px;';
+    noLbl.textContent = isRU ? 'Введите имя получателя:' : 'Enter recipient name:';
+    noContactWrap.appendChild(noLbl);
+    const inputRow = document.createElement('div');
+    inputRow.style.cssText = 'display:flex;gap:8px;';
+    const nameInp = document.createElement('input');
+    nameInp.type = 'text';
+    nameInp.placeholder = isRU ? 'Имя...' : 'Name...';
+    nameInp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:12px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
+    // Prefill from recent if any
+    let recents = [];
+    try { recents = JSON.parse(localStorage.getItem('wh_sms_contacts')||'[]'); } catch(e){}
+    if(recents.length > 0) nameInp.value = recents[0].name;
+    const addSendBtn = document.createElement('button');
+    addSendBtn.style.cssText = 'border:none;border-radius:12px;background:#34c759;color:#fff;font-size:13px;font-weight:800;padding:0 14px;cursor:pointer;white-space:nowrap;';
+    addSendBtn.textContent = 'Add & Send';
+    addSendBtn.addEventListener('click', function(){
+      const n = nameInp.value.trim();
+      if(!n){ nameInp.style.borderColor='#ff3b30'; return; }
+      const tel = recents.length > 0 && recents[0].name === n ? (recents[0].tel||'') : '';
+      selectSmsContactSilent(n, tel);
+      ov.remove();
+      sendSmsInvoice();
+    });
+    nameInp.addEventListener('keydown', function(e){ if(e.key==='Enter') addSendBtn.click(); });
+    inputRow.appendChild(nameInp); inputRow.appendChild(addSendBtn);
+    noContactWrap.appendChild(inputRow);
+    body.appendChild(noContactWrap);
+  }
 
   // Divider
   const div1 = document.createElement('div');
@@ -1115,36 +1155,35 @@ function showSmsPreview(){
     + '<span style="font-size:28px;font-weight:800;color:#007aff;">' + hrsStr + '</span></div>';
   body.appendChild(dataBlock);
 
-  // SMS preview
+  // SMS text preview
   const smsPreview = document.createElement('div');
-  smsPreview.style.cssText = 'background:#e8f4e8;border-radius:14px;padding:12px 16px;margin-bottom:4px;border-left:3px solid #34c759;';
+  smsPreview.style.cssText = 'background:#e8f4e8;border-radius:14px;padding:12px 16px;border-left:3px solid #34c759;';
   smsPreview.innerHTML = '<div style="font-size:11px;font-weight:700;color:#2a7a2a;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">SMS</div>'
     + '<div style="font-size:16px;font-weight:600;color:#111;">' + smsText + '</div>';
   body.appendChild(smsPreview);
-
   sheet.appendChild(body);
 
-  // Buttons
+  // Footer buttons
   const footer = document.createElement('div');
   footer.style.cssText = 'padding:12px 20px calc(20px + env(safe-area-inset-bottom));background:#f2f2f7;display:flex;gap:10px;flex-shrink:0;';
-
   const cancelBtn = document.createElement('button');
   cancelBtn.style.cssText = 'flex:1;padding:16px;border:none;border-radius:14px;background:#fff;font-size:16px;font-weight:600;color:#666;cursor:pointer;';
   cancelBtn.textContent = isRU ? 'Отмена' : 'Cancel';
   cancelBtn.addEventListener('click', function(){ ov.remove(); });
 
-  const sendBtn = document.createElement('button');
-  sendBtn.style.cssText = 'flex:2;padding:16px;border:none;border-radius:14px;background:#34c759;font-size:16px;font-weight:800;color:#fff;cursor:pointer;';
-  sendBtn.textContent = (isRU ? '📤 Отправить' : '📤 Send');
-  sendBtn.addEventListener('click', function(){
-    ov.remove();
-    sendSmsInvoice();
-  });
+  // Only show Send button if contact already known
+  if(contact && contact.name){
+    const sendBtn = document.createElement('button');
+    sendBtn.style.cssText = 'flex:2;padding:16px;border:none;border-radius:14px;background:#34c759;font-size:16px;font-weight:800;color:#fff;cursor:pointer;';
+    sendBtn.textContent = isRU ? '📤 Отправить' : '📤 Send';
+    sendBtn.addEventListener('click', function(){ ov.remove(); sendSmsInvoice(); });
+    footer.appendChild(cancelBtn);
+    footer.appendChild(sendBtn);
+  } else {
+    footer.appendChild(cancelBtn);
+  }
 
-  footer.appendChild(cancelBtn);
-  footer.appendChild(sendBtn);
   sheet.appendChild(footer);
-
   ov.appendChild(sheet);
   document.body.appendChild(ov);
   ov.addEventListener('click', function(e){ if(e.target===ov) ov.remove(); });
@@ -1364,12 +1403,7 @@ function selectSmsContact(name, tel){
 function headerSendSms(){
   const bw = getBiweekly();
   smsHours = bw.total;
-  const contact = getSmsCurrentContact();
-  if(contact && contact.name){
-    showSmsPreview();
-  } else {
-    showSmsPickOverlay();
-  }
+  showSmsPreview();
 }
 
 function sendSmsInvoice(){
