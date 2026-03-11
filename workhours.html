@@ -409,21 +409,49 @@ body {
 
 /* SMS Invoice */
 .sms-block { margin-top:4px; }
-.sms-block-title { font-size:15px; font-weight:700; color:var(--text); margin-bottom:4px; }
-.sms-block-desc { font-size:13px; color:var(--muted); margin-bottom:12px; }
-.sms-contact-btn {
-  width:100%; display:flex; align-items:center; gap:12px;
-  background:var(--bg); border:1.5px solid var(--border);
-  border-radius:14px; padding:14px 16px;
-  cursor:pointer; transition:all 0.12s;
+.sms-block-header { margin-bottom:10px; }
+.sms-block-title { font-size:15px; font-weight:700; color:var(--text); }
+.sms-hrs-card {
+  display:flex; align-items:center; justify-content:space-between;
+  background:var(--accent); border-radius:14px; padding:14px 16px;
+  margin-bottom:10px;
 }
-.sms-contact-btn:active { opacity:0.7; transform:scale(0.98); }
-.sms-contact-icon { font-size:28px; line-height:1; flex-shrink:0; }
-.sms-contact-info { flex:1; text-align:left; }
-.sms-contact-name { font-size:15px; font-weight:700; color:var(--accent); }
-.sms-contact-name.has-contact { color:var(--text); }
-.sms-contact-preview { font-size:12px; color:var(--muted); margin-top:2px; line-height:1.4; }
-.sms-contact-arrow { font-size:20px; color:var(--muted); flex-shrink:0; }
+.sms-hrs-left { display:flex; flex-direction:column; }
+.sms-hrs-num { font-size:32px; font-weight:800; color:#fff; letter-spacing:-1px; line-height:1; }
+.sms-hrs-sub { font-size:12px; font-weight:600; color:rgba(255,255,255,0.75); margin-top:4px; }
+.sms-refresh-btn {
+  border:none; background:rgba(255,255,255,0.2); border-radius:50%;
+  width:44px; height:44px; font-size:20px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  transition:all 0.15s; flex-shrink:0;
+}
+.sms-refresh-btn:active { transform:scale(0.85); background:rgba(255,255,255,0.35); }
+.sms-refresh-btn.spinning { animation:spin360 0.5s linear; }
+@keyframes spin360 { from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+.sms-recipient-row {
+  display:flex; align-items:center; gap:10px;
+  background:var(--bg); border:1.5px solid var(--border);
+  border-radius:14px; padding:12px 14px; margin-bottom:10px;
+}
+.sms-recipient-icon { font-size:24px; flex-shrink:0; }
+.sms-recipient-info { flex:1; }
+.sms-recipient-name { font-size:15px; font-weight:700; color:var(--text); }
+.sms-recipient-sub { font-size:12px; color:var(--muted); margin-top:2px; }
+.sms-edit-btn {
+  border:none; background:var(--surface); border-radius:10px;
+  width:38px; height:38px; font-size:18px; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 3px rgba(0,0,0,0.1); flex-shrink:0;
+}
+.sms-edit-btn:active { opacity:0.6; }
+.sms-send-btn {
+  width:100%; border:none; border-radius:14px; padding:15px;
+  background:var(--green); font-size:16px; font-weight:800; color:#fff;
+  cursor:pointer; display:flex; align-items:center; justify-content:center;
+  gap:8px; transition:opacity 0.1s;
+}
+.sms-send-btn:active { opacity:0.8; }
+.sms-send-btn:disabled { background:var(--border); color:var(--muted); }
 /* Days of week picker */
 .days-picker { display:flex; gap:6px; flex-wrap:wrap; }
 .day-chip {
@@ -661,15 +689,34 @@ body {
         <div class="backup-divider"></div>
 
         <div class="sms-block">
-          <div class="sms-block-title" id="smsBlockTitle">💬 SMS</div>
-          <div class="sms-block-desc" id="smsBlockDesc">Отправить часы за две недели выбранному контакту</div>
-          <button class="sms-contact-btn" id="smsContactBtn" onclick="sendSmsInvoice()">
-            <span class="sms-contact-icon">👤</span>
-            <div class="sms-contact-info">
-              <div class="sms-contact-name" id="smsContactName">Выбрать контакт</div>
-              <div class="sms-contact-preview" id="smsContactPreview">Откроет стандартное SMS приложение</div>
+          <div class="sms-block-header">
+            <div class="sms-block-title" id="smsBlockTitle">💬 SMS Invoice</div>
+          </div>
+
+          <!-- Hours display + Refresh -->
+          <div class="sms-hrs-card">
+            <div class="sms-hrs-left">
+              <div class="sms-hrs-num" id="smsHrsNum">—</div>
+              <div class="sms-hrs-sub" id="smsHrsSub">Hrs · Invoice Sent</div>
             </div>
-            <span class="sms-contact-arrow">›</span>
+            <button class="sms-refresh-btn" onclick="refreshSmsHours()" title="Refresh">
+              <span id="smsRefreshIcon">🔄</span>
+            </button>
+          </div>
+
+          <!-- Recipient row -->
+          <div class="sms-recipient-row">
+            <span class="sms-recipient-icon">👤</span>
+            <div class="sms-recipient-info">
+              <div class="sms-recipient-name" id="smsRecipientName">Tap ✏️ to set contact</div>
+              <div class="sms-recipient-sub" id="smsRecipientSub">No recipient yet</div>
+            </div>
+            <button class="sms-edit-btn" onclick="editSmsRecipient()">✏️</button>
+          </div>
+
+          <!-- Send button -->
+          <button class="sms-send-btn" id="smsSendBtn" onclick="sendSmsInvoice()">
+            📤 <span id="smsSendLabel">Send</span>
           </button>
         </div>
       </div>
@@ -926,69 +973,94 @@ function updateBackupInfo(){
 }
 
 // ── SMS INVOICE ──
-function getSmsText(){
+let smsHours = null; // current hours shown in SMS block
+
+function getSmsHours(){
   const bw = getBiweekly();
-  const hrs = bw.total;
-  // Format hours: 45.5 → "45.5 Hrs"
-  const hrsStr = (hrs % 1 === 0 ? hrs.toFixed(0) : hrs.toFixed(1)) + ' Hrs';
-  const isRU = lang === 'ru';
-  return `${hrsStr} , Invoice Sent`;
+  return bw.total;
+}
+
+function getSmsText(hrs){
+  const h = (hrs === null || hrs === undefined) ? getSmsHours() : hrs;
+  const hrsStr = (h % 1 === 0 ? h.toFixed(0) : h.toFixed(1));
+  return `${hrsStr} Hrs , Invoice Sent`;
+}
+
+function refreshSmsHours(){
+  smsHours = getSmsHours();
+  const numEl = document.getElementById('smsHrsNum');
+  const btn = document.getElementById('smsRefreshIcon');
+  if(numEl) numEl.textContent = (smsHours % 1 === 0 ? smsHours.toFixed(0) : smsHours.toFixed(1));
+  // spin animation
+  const btnEl = document.querySelector('.sms-refresh-btn');
+  if(btnEl){ btnEl.classList.add('spinning'); setTimeout(()=>btnEl.classList.remove('spinning'),500); }
+  updateSmsBtn();
 }
 
 function updateSmsBtn(){
   const isRU = lang === 'ru';
-  const nameEl = document.getElementById('smsContactName');
-  const previewEl = document.getElementById('smsContactPreview');
   const titleEl = document.getElementById('smsBlockTitle');
-  const descEl = document.getElementById('smsBlockDesc');
-  if(titleEl) titleEl.textContent = isRU ? '💬 SMS' : '💬 SMS';
-  if(descEl) descEl.textContent = isRU ? 'Отправить часы за две недели выбранному контакту' : 'Send biweekly hours to a contact';
+  const nameEl = document.getElementById('smsRecipientName');
+  const subEl = document.getElementById('smsRecipientSub');
+  const sendBtn = document.getElementById('smsSendBtn');
+  const sendLabel = document.getElementById('smsSendLabel');
+  const hrsSubEl = document.getElementById('smsHrsSub');
+  const hrsNumEl = document.getElementById('smsHrsNum');
+
+  if(titleEl) titleEl.textContent = '💬 SMS Invoice';
+  if(hrsSubEl) hrsSubEl.textContent = 'Hrs · Invoice Sent';
+
+  // Load hours if not set
+  if(smsHours === null){ smsHours = getSmsHours(); }
+  if(hrsNumEl) hrsNumEl.textContent = (smsHours % 1 === 0 ? smsHours.toFixed(0) : smsHours.toFixed(1));
 
   try {
     const last = localStorage.getItem('wh_sms_last');
-    if(last && nameEl){
-      nameEl.textContent = last;
-      nameEl.classList.add('has-contact');
-      if(previewEl) previewEl.textContent = getSmsText();
+    if(last){
+      if(nameEl){ nameEl.textContent = last; nameEl.style.color = 'var(--text)'; }
+      if(subEl) subEl.textContent = isRU ? 'Последний получатель' : 'Last recipient';
+      if(sendBtn) sendBtn.disabled = false;
+      if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
     } else {
-      if(nameEl){ nameEl.textContent = isRU ? 'Выбрать контакт' : 'Choose contact'; nameEl.classList.remove('has-contact'); }
-      if(previewEl) previewEl.textContent = isRU ? 'Откроет SMS приложение' : 'Opens SMS app';
+      if(nameEl){ nameEl.textContent = isRU ? 'Нажмите ✏️ чтобы добавить' : 'Tap ✏️ to set contact'; nameEl.style.color = 'var(--muted)'; }
+      if(subEl) subEl.textContent = isRU ? 'Получатель не задан' : 'No recipient yet';
+      if(sendBtn) sendBtn.disabled = false;
+      if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
     }
   } catch(e){}
 }
 
+function editSmsRecipient(){
+  const isRU = lang === 'ru';
+  let current = '';
+  try { current = localStorage.getItem('wh_sms_last') || ''; } catch(e){}
+  const name = prompt(isRU ? 'Имя получателя:' : 'Recipient name:', current);
+  if(name !== null && name.trim()){
+    try { localStorage.setItem('wh_sms_last', name.trim()); } catch(e){}
+    updateSmsBtn();
+  }
+}
+
 function sendSmsInvoice(){
   const isRU = lang === 'ru';
-  const text = getSmsText();
+  if(smsHours === null) smsHours = getSmsHours();
+  const text = getSmsText(smsHours);
 
-  // Try Web Share API first (lets user pick contact from address book)
+  // Try Web Share with SMS (opens share sheet → Messages)
   if(navigator.share){
-    navigator.share({ text: text })
-      .then(()=>{
-        // Remember we sent — ask user who it went to for display
-        const name = prompt(isRU ? 'Имя получателя (для отображения):' : 'Recipient name (for display):', '');
-        if(name && name.trim()){
-          try { localStorage.setItem('wh_sms_last', name.trim()); } catch(e){}
-          updateSmsBtn();
-        }
-      })
-      .catch(()=>{});
+    navigator.share({ text })
+      .then(()=>{})
+      .catch(()=>{
+        // Fallback if share cancelled/failed
+        const encoded = encodeURIComponent(text);
+        window.open('sms:?body=' + encoded, '_self');
+      });
     return;
   }
 
-  // Fallback: sms: link (opens SMS app, no pre-selected contact)
-  const last = (() => { try { return localStorage.getItem('wh_sms_last')||''; } catch(e){ return ''; } })();
+  // Fallback: sms: URI — opens Messages app directly
   const encoded = encodeURIComponent(text);
-  window.open(`sms:?body=${encoded}`, '_self');
-
-  // After short delay, ask name for next time
-  setTimeout(()=>{
-    const name = prompt(isRU ? 'Кому отправили? (для следующего раза):' : 'Who did you send to? (for next time):', last);
-    if(name && name.trim()){
-      try { localStorage.setItem('wh_sms_last', name.trim()); } catch(e){}
-      updateSmsBtn();
-    }
-  }, 1500);
+  window.open('sms:?body=' + encoded, '_self');
 }
 
 function openGuide(guideLang){
