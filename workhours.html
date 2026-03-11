@@ -987,18 +987,54 @@ function getSmsText(hrs){
 
 
 
-// Contact stored in wh4 db object itself so it persists with hours data
+// Contact: memory + db(wh4) + IndexedDB (works even when localStorage is blocked by Safari)
+let _smsContactMem = null;
+let _idb = null;
+
+function _openIDB(){
+  return new Promise(function(res){
+    if(_idb){res(_idb);return;}
+    try{
+      const r=indexedDB.open('whc',1);
+      r.onupgradeneeded=function(e){e.target.result.createObjectStore('kv');};
+      r.onsuccess=function(e){_idb=e.target.result;res(_idb);};
+      r.onerror=function(){res(null);};
+    }catch(e){res(null);}
+  });
+}
+function _idbSet(k,v){_openIDB().then(function(db){if(!db)return;try{db.transaction('kv','readwrite').objectStore('kv').put(v,k);}catch(e){}});}
+function _idbGet(k,cb){_openIDB().then(function(db){if(!db){cb(null);return;}try{var r=db.transaction('kv','readonly').objectStore('kv').get(k);r.onsuccess=function(){cb(r.result||null);};r.onerror=function(){cb(null);};}catch(e){cb(null);}});}
+function _idbDel(k){_openIDB().then(function(db){if(!db)return;try{db.transaction('kv','readwrite').objectStore('kv').delete(k);}catch(e){}});}
+
 function getSmsCurrentContact(){
-  if(db && db.__smsContact && db.__smsContact.name) return db.__smsContact;
+  if(_smsContactMem) return _smsContactMem;
+  if(db && db.__smsContact && db.__smsContact.name){_smsContactMem=db.__smsContact;return _smsContactMem;}
+  try{const v=localStorage.getItem('wh_sms_contact');if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;}}catch(e){}
   return null;
 }
 function setSmsCurrentContact(c){
-  if(!db) return;
-  db.__smsContact = c;
-  sv(); // save to wh4 localStorage key along with hours data
+  _smsContactMem=c;
+  if(db){db.__smsContact=c;sv();}
+  try{localStorage.setItem('wh_sms_contact',JSON.stringify(c));}catch(e){}
+  _idbSet('wh_sms_contact',c);
 }
 function clearSmsCurrentContact(){
-  if(db) { delete db.__smsContact; sv(); }
+  _smsContactMem=null;
+  if(db){delete db.__smsContact;sv();}
+  try{localStorage.removeItem('wh_sms_contact');}catch(e){}
+  _idbDel('wh_sms_contact');
+}
+// Load from IDB on startup (async fallback for when localStorage is blocked)
+function _loadContactFromIDB(){
+  _idbGet('wh_sms_contact',function(c){
+    if(c && c.name && !_smsContactMem){
+      _smsContactMem=c;
+      if(db && !db.__smsContact) db.__smsContact=c;
+      updateSmsBtn();
+      var hBtn=document.getElementById('headerSendBtn');
+      if(hBtn){hBtn.style.background='var(--green)';hBtn.title=c.name;}
+    }
+  });
 }
 function isMobile(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -2170,6 +2206,7 @@ injectManifest();
 registerSW();
 applyLang();
 render();
+_loadContactFromIDB();
 // Update header send button to reflect saved contact on startup
 (function(){
   const contact = getSmsCurrentContact();
