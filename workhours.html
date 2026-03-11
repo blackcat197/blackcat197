@@ -1044,119 +1044,95 @@ function refreshSmsHours(){
 
 function updateSmsBtn(){
   const isRU = lang === 'ru';
-  const titleEl = document.getElementById('smsBlockTitle');
   const nameEl = document.getElementById('smsRecipientName');
   const subEl = document.getElementById('smsRecipientSub');
   const sendBtn = document.getElementById('smsSendBtn');
   const sendLabel = document.getElementById('smsSendLabel');
   const hrsSubEl = document.getElementById('smsHrsSub');
   const hrsNumEl = document.getElementById('smsHrsNum');
+  const editBtn = document.getElementById('smsEditBtn');
 
-  if(titleEl) titleEl.textContent = '💬 SMS Invoice';
   if(hrsSubEl) hrsSubEl.textContent = 'Hrs · Invoice Sent';
-
-  // Load hours if not set
   if(smsHours === null){ smsHours = getSmsHours(); }
   if(hrsNumEl) hrsNumEl.textContent = (smsHours % 1 === 0 ? smsHours.toFixed(0) : smsHours.toFixed(1));
 
-  try {
-    const last = localStorage.getItem('wh_sms_last');
-    if(last){
-      if(nameEl){ nameEl.textContent = last; nameEl.style.color = 'var(--text)'; }
-      if(subEl) subEl.textContent = isRU ? 'Последний получатель' : 'Last recipient';
-      if(sendBtn) sendBtn.disabled = false;
-      if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
-    } else {
-      if(nameEl){ nameEl.textContent = isRU ? 'Нажмите ✏️ чтобы добавить' : 'Tap ✏️ to set contact'; nameEl.style.color = 'var(--muted)'; }
-      if(subEl) subEl.textContent = isRU ? 'Получатель не задан' : 'No recipient yet';
-      if(sendBtn) sendBtn.disabled = false;
-      if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
-    }
-  } catch(e){}
+  const mobile = isMobile();
+  const contact = getSmsCurrentContact();
+
+  // Disable entire SMS block if not mobile
+  if(!mobile){
+    if(nameEl){ nameEl.textContent = isRU ? 'SMS недоступно' : 'SMS not available'; nameEl.style.color = 'var(--muted)'; }
+    if(subEl) subEl.textContent = isRU ? 'Требуется мобильное устройство' : 'Requires a mobile device';
+    if(sendBtn){ sendBtn.disabled = true; sendBtn.style.opacity = '0.4'; }
+    if(editBtn){ editBtn.disabled = true; editBtn.style.opacity = '0.4'; }
+    return;
+  }
+
+  if(editBtn){ editBtn.disabled = false; editBtn.style.opacity = '1'; }
+
+  if(contact && contact.name){
+    if(nameEl){ nameEl.textContent = contact.name; nameEl.style.color = 'var(--text)'; }
+    if(subEl) subEl.textContent = contact.tel || (isRU ? 'Получатель выбран' : 'Recipient selected');
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+    if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
+  } else {
+    if(nameEl){ nameEl.textContent = isRU ? 'Нажмите ✏️ чтобы выбрать' : 'Tap ✏️ to choose contact'; nameEl.style.color = 'var(--muted)'; }
+    if(subEl) subEl.textContent = isRU ? 'Получатель не выбран' : 'No recipient selected';
+    if(sendBtn){ sendBtn.disabled = false; sendBtn.style.opacity = '1'; }
+    if(sendLabel) sendLabel.textContent = isRU ? 'Отправить' : 'Send';
+  }
 }
 
 // ── SMS CONTACTS ──
-function loadSmsContacts(){
-  try { return JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){ return []; }
-}
-function saveSmsContacts(list){
-  try { localStorage.setItem('wh_sms_contacts', JSON.stringify(list)); } catch(e){}
-}
 function getSmsCurrentContact(){
-  try { return localStorage.getItem('wh_sms_last') || ''; } catch(e){ return ''; }
+  try { return JSON.parse(localStorage.getItem('wh_sms_contact') || 'null'); } catch(e){ return null; }
+}
+function setSmsCurrentContact(c){
+  try { localStorage.setItem('wh_sms_contact', JSON.stringify(c)); } catch(e){}
+  // keep legacy key for SMS send
+  try { localStorage.setItem('wh_sms_last', c ? c.name : ''); } catch(e){}
 }
 
-function renderSmsContactsList(){
-  const el = document.getElementById('smsContactsList');
-  if(!el) return;
-  const contacts = loadSmsContacts();
-  const current = getSmsCurrentContact();
+// Check if Contact Picker API is available (Android Chrome, some browsers)
+function smsSupported(){
+  return 'contacts' in navigator && 'ContactsManager' in window;
+}
+// Check if SMS is likely possible (mobile device)
+function isMobile(){
+  return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+}
+
+async function pickSmsContact(){
   const isRU = lang === 'ru';
-  el.innerHTML = '';
-
-  contacts.forEach((name, i) => {
-    const item = document.createElement('div');
-    item.className = 'sms-contact-item' + (name === current ? ' active' : '');
-    const initials = name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
-    item.innerHTML = `
-      <div class="sms-contact-avatar">${initials}</div>
-      <div class="sms-contact-item-name">${name}</div>
-      ${name === current ? '<span class="sms-contact-item-check">✓</span>' : ''}
-      <button class="sms-contact-del" onclick="deleteSmsContact(${i},event)">✕</button>`;
-    item.addEventListener('click', ()=>selectSmsContact(name));
-    el.appendChild(item);
-  });
-
-  // Add new contact row
-  const addRow = document.createElement('div');
-  addRow.className = 'sms-contact-item';
-  addRow.style.cssText = 'color:var(--accent);font-weight:700;';
-  addRow.innerHTML = `<div class="sms-contact-avatar" style="background:var(--surface2);color:var(--accent);font-size:22px;">＋</div>
-    <div class="sms-contact-item-name" style="color:var(--accent)">${isRU ? 'Добавить контакт' : 'Add contact'}</div>`;
-  addRow.addEventListener('click', ()=>showSmsAddInput());
-  el.appendChild(addRow);
-}
-
-function selectSmsContact(name){
-  try { localStorage.setItem('wh_sms_last', name); } catch(e){}
-  updateSmsBtn();
-  // close list
-  const list = document.getElementById('smsContactsList');
-  const btn = document.getElementById('smsEditBtn');
-  if(list) list.style.display = 'none';
-  if(btn) btn.textContent = '✏️';
-}
-
-function deleteSmsContact(idx, e){
-  e.stopPropagation();
-  const contacts = loadSmsContacts();
-  const removed = contacts.splice(idx, 1)[0];
-  saveSmsContacts(contacts);
-  // if was current, clear
-  if(getSmsCurrentContact() === removed){
-    try { localStorage.removeItem('wh_sms_last'); } catch(e){}
-    updateSmsBtn();
+  if(!smsSupported()){
+    // Fallback: manual input
+    toggleSmsEdit();
+    return;
   }
-  renderSmsContactsList();
-}
-
-function showSmsAddInput(){
-  const editRow = document.getElementById('smsEditRow');
-  const input = document.getElementById('smsEditInput');
-  input.value = '';
-  editRow.style.display = 'flex';
-  setTimeout(()=>input.focus(), 50);
+  try {
+    const results = await navigator.contacts.select(['name','tel'], {multiple:false});
+    if(results && results.length > 0){
+      const c = results[0];
+      const name = (c.name && c.name[0]) || '';
+      const tel = (c.tel && c.tel[0]) || '';
+      setSmsCurrentContact({name, tel});
+      updateSmsBtn();
+    }
+  } catch(e){
+    // User cancelled or error — fallback to manual
+    toggleSmsEdit();
+  }
 }
 
 function toggleSmsEdit(){
   const list = document.getElementById('smsContactsList');
-  const btn = document.getElementById('smsEditBtn');
   const editRow = document.getElementById('smsEditRow');
+  const btn = document.getElementById('smsEditBtn');
   if(list.style.display === 'none'){
-    renderSmsContactsList();
     list.style.display = 'block';
     editRow.style.display = 'none';
     btn.textContent = '✕';
+    renderSmsContactsList();
   } else {
     list.style.display = 'none';
     editRow.style.display = 'none';
@@ -1164,43 +1140,118 @@ function toggleSmsEdit(){
   }
 }
 
+function renderSmsContactsList(){
+  const el = document.getElementById('smsContactsList');
+  if(!el) return;
+  const isRU = lang === 'ru';
+  const current = getSmsCurrentContact();
+  el.innerHTML = '';
+
+  // If Contact Picker supported — show "Pick from contacts" button
+  if(smsSupported()){
+    const pickBtn = document.createElement('div');
+    pickBtn.className = 'sms-contact-item';
+    pickBtn.innerHTML = `<div class="sms-contact-avatar" style="background:var(--accent);font-size:18px;">📱</div>
+      <div class="sms-contact-item-name" style="color:var(--accent);font-weight:700">${isRU ? 'Выбрать из контактов' : 'Pick from contacts'}</div>`;
+    pickBtn.addEventListener('click', ()=>pickSmsContact());
+    el.appendChild(pickBtn);
+  }
+
+  // Show recently used contacts from localStorage
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+
+  if(saved.length > 0){
+    const hdr = document.createElement('div');
+    hdr.style.cssText = 'padding:8px 16px 4px;font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:0.05em;';
+    hdr.textContent = isRU ? 'Недавние' : 'Recent';
+    el.appendChild(hdr);
+  }
+
+  saved.forEach((c, i) => {
+    const isCur = current && current.name === c.name;
+    const item = document.createElement('div');
+    item.className = 'sms-contact-item' + (isCur ? ' active' : '');
+    const initials = c.name.split(' ').map(w=>w[0]||'').join('').toUpperCase().slice(0,2) || '?';
+    item.innerHTML = `
+      <div class="sms-contact-avatar">${initials}</div>
+      <div class="sms-contact-item-name">${c.name}${c.tel ? '<br><span style="font-size:11px;color:var(--muted);font-weight:400">'+c.tel+'</span>' : ''}</div>
+      ${isCur ? '<span class="sms-contact-item-check">✓</span>' : ''}
+      <button class="sms-contact-del" onclick="deleteSmsRecent(${i},event)">✕</button>`;
+    item.addEventListener('click', ()=>{ setSmsCurrentContact(c); updateSmsBtn(); closeSmsEdit(); });
+    el.appendChild(item);
+  });
+
+  // Manual entry option
+  const addRow = document.createElement('div');
+  addRow.className = 'sms-contact-item';
+  addRow.innerHTML = `<div class="sms-contact-avatar" style="background:var(--surface2);color:var(--accent);font-size:20px;">✏️</div>
+    <div class="sms-contact-item-name" style="color:var(--accent)">${isRU ? 'Ввести вручную' : 'Enter manually'}</div>`;
+  addRow.addEventListener('click', ()=>{
+    const list = document.getElementById('smsContactsList');
+    const editRow = document.getElementById('smsEditRow');
+    const input = document.getElementById('smsEditInput');
+    if(list) list.style.display = 'none';
+    if(editRow) editRow.style.display = 'flex';
+    if(input){ input.value = ''; setTimeout(()=>input.focus(), 50); }
+  });
+  el.appendChild(addRow);
+}
+
+function deleteSmsRecent(idx, e){
+  e.stopPropagation();
+  let saved = [];
+  try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+  saved.splice(idx, 1);
+  try { localStorage.setItem('wh_sms_contacts', JSON.stringify(saved)); } catch(e){}
+  renderSmsContactsList();
+}
+
+function closeSmsEdit(){
+  const list = document.getElementById('smsContactsList');
+  const editRow = document.getElementById('smsEditRow');
+  const btn = document.getElementById('smsEditBtn');
+  if(list) list.style.display = 'none';
+  if(editRow) editRow.style.display = 'none';
+  if(btn) btn.textContent = '✏️';
+}
+
 function saveSmsRecipient(){
   const input = document.getElementById('smsEditInput');
   const name = input.value.trim();
   if(name){
-    // Add to contacts list if not already there
-    const contacts = loadSmsContacts();
-    if(!contacts.includes(name)){ contacts.push(name); saveSmsContacts(contacts); }
-    try { localStorage.setItem('wh_sms_last', name); } catch(e){}
+    const c = {name, tel:''};
+    setSmsCurrentContact(c);
+    // Save to recent
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+    if(!saved.find(x=>x.name===name)){ saved.unshift(c); saved=saved.slice(0,10); }
+    try { localStorage.setItem('wh_sms_contacts', JSON.stringify(saved)); } catch(e){}
     updateSmsBtn();
   }
-  const editRow = document.getElementById('smsEditRow');
-  if(editRow) editRow.style.display = 'none';
-  renderSmsContactsList();
+  closeSmsEdit();
 }
 
 function editSmsRecipient(){ toggleSmsEdit(); }
 
 function sendSmsInvoice(){
-  const isRU = lang === 'ru';
+  if(!isMobile()) return;
   if(smsHours === null) smsHours = getSmsHours();
   const text = getSmsText(smsHours);
-
-  // Try Web Share with SMS (opens share sheet → Messages)
-  if(navigator.share){
-    navigator.share({ text })
-      .then(()=>{})
-      .catch(()=>{
-        // Fallback if share cancelled/failed
-        const encoded = encodeURIComponent(text);
-        window.open('sms:?body=' + encoded, '_self');
-      });
-    return;
-  }
-
-  // Fallback: sms: URI — opens Messages app directly
+  const contact = getSmsCurrentContact();
+  // Use tel number if available for direct SMS
+  const tel = contact && contact.tel ? contact.tel.replace(/[\s\-\(\)]/g,'') : '';
   const encoded = encodeURIComponent(text);
-  window.open('sms:?body=' + encoded, '_self');
+  const url = tel ? `sms:${tel}?body=${encoded}` : `sms:?body=${encoded}`;
+  window.location.href = url;
+
+  // Save to recent contacts
+  if(contact && contact.name){
+    let saved = [];
+    try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+    if(!saved.find(x=>x.name===contact.name)){ saved.unshift(contact); saved=saved.slice(0,10); }
+    try { localStorage.setItem('wh_sms_contacts', JSON.stringify(saved)); } catch(e){}
+  }
 }
 
 function openGuide(guideLang){
