@@ -987,23 +987,18 @@ function getSmsText(hrs){
 
 
 
-// In-memory fallback for Safari/htmlpreview where localStorage may be blocked
-let _smsContactMem = null;
+// Contact stored in wh4 db object itself so it persists with hours data
 function getSmsCurrentContact(){
-  if(_smsContactMem) return _smsContactMem;
-  try { const v=localStorage.getItem('wh_sms_contact'); if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;} } catch(e){}
-  try { const v=sessionStorage.getItem('wh_sms_contact'); if(v){_smsContactMem=JSON.parse(v);return _smsContactMem;} } catch(e){}
+  if(db && db.__smsContact && db.__smsContact.name) return db.__smsContact;
   return null;
 }
 function setSmsCurrentContact(c){
-  _smsContactMem = c;
-  try { localStorage.setItem('wh_sms_contact', JSON.stringify(c)); } catch(e){}
-  try { sessionStorage.setItem('wh_sms_contact', JSON.stringify(c)); } catch(e){}
+  if(!db) return;
+  db.__smsContact = c;
+  sv(); // save to wh4 localStorage key along with hours data
 }
 function clearSmsCurrentContact(){
-  _smsContactMem = null;
-  try { localStorage.removeItem('wh_sms_contact'); } catch(e){}
-  try { sessionStorage.removeItem('wh_sms_contact'); } catch(e){}
+  if(db) { delete db.__smsContact; sv(); }
 }
 function isMobile(){
   return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -1116,7 +1111,7 @@ function showSmsPreview(){
     nameInp.style.cssText = 'flex:1;border:2px solid #007aff;border-radius:12px;padding:12px 14px;font-size:16px;color:#111;outline:none;background:#fff;';
     // Prefill from recent if any
     let recents = [];
-    try { recents = JSON.parse(localStorage.getItem('wh_sms_contacts')||'[]'); } catch(e){}
+    recents = getSmsRecents();
     if(recents.length > 0) nameInp.value = recents[0].name;
     const addSendBtn = document.createElement('button');
     addSendBtn.style.cssText = 'border:none;border-radius:12px;background:#34c759;color:#fff;font-size:13px;font-weight:800;padding:0 14px;cursor:pointer;white-space:nowrap;';
@@ -1210,18 +1205,24 @@ async function smsPickContact(){
 }
 
 function saveToSmsRecent(c){
-  let saved = [];
-  try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
-  saved = saved.filter(x => x.name !== c.name);
-  saved.unshift(c);
-  saved = saved.slice(0, 10);
-  try { localStorage.setItem('wh_sms_contacts', JSON.stringify(saved)); } catch(e){}
+  // Save in db object (persists with wh4)
+  if(!db.__smsRecents) db.__smsRecents = [];
+  db.__smsRecents = db.__smsRecents.filter(function(x){ return x.name !== c.name; });
+  db.__smsRecents.unshift(c);
+  db.__smsRecents = db.__smsRecents.slice(0, 10);
+  // Also try localStorage as secondary
+  try { localStorage.setItem('wh_sms_contacts', JSON.stringify(db.__smsRecents)); } catch(e){}
+}
+
+function getSmsRecents(){
+  if(db && db.__smsRecents && db.__smsRecents.length) return db.__smsRecents;
+  try { return JSON.parse(localStorage.getItem('wh_sms_contacts')||'[]'); } catch(e){ return []; }
 }
 
 function showSmsPickOverlay(){
   const isRU = lang === 'ru';
   let saved = [];
-  try { saved = JSON.parse(localStorage.getItem('wh_sms_contacts') || '[]'); } catch(e){}
+  saved = getSmsRecents();
   const currentContact = getSmsCurrentContact();
 
   const ex = document.getElementById('_smsOv');
@@ -1523,6 +1524,7 @@ function loadDB(){
     const cut=new Date(); cut.setFullYear(cut.getFullYear()-1);
     const out={};
     for(const[k,v] of Object.entries(obj)){
+      if(k.startsWith('__')){ out[k]=v; continue; }
       const[y,m,d]=k.split('-').map(Number);
       if(new Date(y,m-1,d)>=cut) out[k]=v;
     }
