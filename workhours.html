@@ -541,27 +541,9 @@ body {
   <button class="send-btn" id="headerSendBtn" onclick="headerSendSms()">📤 Send</button>
 </div>
 
-<div class="biweekly">
-  <div class="bw-label">Итого за две недели</div>
-  <div class="bw-main">
-    <div>
-      <div class="bw-range" id="bwRange">—</div>
-      <div class="bw-sub" id="bwSub">0 рабочих дней</div>
-    </div>
-    <div class="bw-total" id="bwTotal">0 hrs</div>
-  </div>
-</div>
 
-<div class="monthly">
-  <div class="mo-label">Итого за месяц</div>
-  <div class="mo-main">
-    <div>
-      <div class="mo-range" id="moRange">—</div>
-      <div class="mo-sub" id="moSub">0 рабочих дней</div>
-    </div>
-    <div class="mo-total" id="moTotal">0 hrs</div>
-  </div>
-</div>
+
+
 
 <div class="cards">
   <div class="card">
@@ -574,13 +556,7 @@ body {
     <div class="card-total" id="c2" style="color:var(--accent2)">0 ч</div>
     <div class="card-days" id="cd2">0 дн.</div>
   </div>
-  <div class="card wide">
-    <div>
-      <div class="card-period" id="cardTotalLabel">Итого за месяц</div>
-      <div class="card-days" id="cdtot">0 рабочих дн.</div>
-    </div>
-    <div class="card-total" id="ctot" style="color:var(--green)">0 ч</div>
-  </div>
+
 </div>
 
 <div class="section">
@@ -1683,20 +1659,11 @@ function render(){
   document.getElementById('cd1').textContent=n1+' '+L.dn;
   document.getElementById('c2').innerHTML=fmt(s2);
   document.getElementById('cd2').textContent=n2+' '+L.dn;
-  document.getElementById('ctot').innerHTML=fmt(s1+s2);
-  document.getElementById('cdtot').textContent=(n1+n2)+' '+L.workDn;
+  // monthly total card removed (shown in green banner already)
   document.getElementById('ss1').innerHTML=s1?fmt(s1):'';
   document.getElementById('st2').innerHTML=`${sh2} — ${tot} <span class="sec-sum" id="ss2">${s2?fmt(s2):''}</span>`;
 
-  const bw=getBiweekly();
-  document.getElementById('bwRange').textContent=bw.range;
-  document.getElementById('bwTotal').innerHTML=fmtBanner(bw.total);
-  document.getElementById('bwSub').textContent=bw.days+' '+L.workDays;
-
-  const ms=`1 - ${String(cm+1).padStart(2,'0')}`, me=`${tot} - ${String(cm+1).padStart(2,'0')}`;
-  document.getElementById('moRange').textContent=`${ms} / ${me}`;
-  document.getElementById('moTotal').innerHTML=fmtBanner(s1+s2);
-  document.getElementById('moSub').textContent=(n1+n2)+' '+L.workDays;
+  // banners removed
 
   applyLang();
 }
@@ -2039,8 +2006,6 @@ function setLang(l){
 function applyLang(){
   const L = LANG[lang];
   document.getElementById('appTitle').textContent = L.appTitle;
-  document.querySelector('.bw-label').textContent = L.bwLabel;
-  document.querySelector('.mo-label').textContent = L.moLabel;
   document.querySelectorAll('.weekdays').forEach(row=>{
     row.querySelectorAll('.wd').forEach((el,i)=>el.textContent=L.wd[i]);
   });
@@ -2069,7 +2034,7 @@ function applyLang(){
     'spSecAbout':L.sectionAbout,
     'spVersion':L.version,
     'spVersionVal':L.versionVal,
-    'cardTotalLabel':L.totalMonth,
+
     'spSecCustomHrs':L.secCustomHrs,
     'customHrsTitle':L.customHrsTitle,
     'lblHours':L.lblHours,
