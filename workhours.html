@@ -1645,12 +1645,18 @@ function getBiweekly(){
 // ── RENDER ──
 function render(){
   const L=LANG[lang];
-  const tot=dim(cy,cm);
-  const sh2 = getPeriodStart(cy, cm, 16); // first Monday >= 16
-  document.getElementById('mname').textContent=L.months[cm];
-  document.getElementById('cp2').textContent=`${sh2} — ${tot}`;
-  buildCal('cal1',1,15); buildCal('cal2',sh2,tot);
+  const tot=dim(cy,cm); // total days in month — works for ALL months ALL years
+  const sh2 = getPeriodStart(cy, cm, 16); // first Monday >= 16 (for biweekly stats only)
 
+  document.getElementById('mname').textContent=L.months[cm];
+  // Second half label: always 16 to end of month (show all days)
+  document.getElementById('cp2').textContent=`16 — ${tot}`;
+
+  // cal1: days 1-15, cal2: days 16 to end (ALL days shown, none skipped)
+  buildCal('cal1', 1, 15);
+  buildCal('cal2', 16, tot);
+
+  // Stats for cards: 1-15 and sh2-tot (biweekly period)
   let s1=0,n1=0,s2=0,n2=0;
   for(let d=1;d<=15;d++){const h=db[K(cy,cm,d)];if(h>0){s1+=h;n1++;}}
   for(let d=sh2;d<=tot;d++){const h=db[K(cy,cm,d)];if(h>0){s2+=h;n2++;}}
@@ -1659,11 +1665,8 @@ function render(){
   document.getElementById('cd1').textContent=n1+' '+L.dn;
   document.getElementById('c2').innerHTML=fmt(s2);
   document.getElementById('cd2').textContent=n2+' '+L.dn;
-  // monthly total card removed (shown in green banner already)
   document.getElementById('ss1').innerHTML=s1?fmt(s1):'';
-  document.getElementById('st2').innerHTML=`${sh2} — ${tot} <span class="sec-sum" id="ss2">${s2?fmt(s2):''}</span>`;
-
-  // banners removed
+  document.getElementById('st2').innerHTML=`16 — ${tot} <span class="sec-sum" id="ss2">${s2?fmt(s2):''}</span>`;
 
   applyLang();
 }
