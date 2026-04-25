@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Часы">
+<meta name="apple-mobile-web-app-title" content="WorkTime">
 <meta name="theme-color" content="#e5e5ea">
 <link rel="manifest" id="manifestLink">
 <title>Рабочие часы</title>
@@ -17,16 +17,18 @@
   --orange:#ff9500; --purple:#af52de; --text:#1c1c1e;
   --muted:#8e8e93; --border:#d1d1d6;
 }
-html, body { height:100%; }
+html, body { height:100%; margin:0; padding:0; }
 body {
   background:var(--bg); color:var(--text);
   font-family:-apple-system,'SF Pro Display','Helvetica Neue',sans-serif;
-  overflow-x:hidden;
-  padding-bottom:calc(40px + env(safe-area-inset-bottom));
+  overflow:hidden; /* no page scroll */
+  position:fixed; width:100%; top:0; left:0; bottom:0;
+  display:flex; flex-direction:column;
 }
 
 /* HEADER */
-.header { background:var(--bg); padding:18px 18px 10px; padding-top:calc(18px + env(safe-area-inset-top)); position:sticky; top:0; z-index:20; }
+.header { background:var(--bg); padding:18px 18px 10px; padding-top:calc(18px + env(safe-area-inset-top)); flex-shrink:0; z-index:20; }
+.main-scroll { flex:1; overflow-y:auto; -webkit-overflow-scrolling:touch; overscroll-behavior:contain; padding-bottom:calc(40px + env(safe-area-inset-bottom)); }
 .app-title { font-size:26px; font-weight:800; letter-spacing:-0.5px; text-align:center; margin-bottom:10px; }
 .header-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
 .header-left { display:flex; align-items:center; gap:8px; }
@@ -541,9 +543,7 @@ body {
   <button class="send-btn" id="headerSendBtn" onclick="headerSendSms()">📤 Send</button>
 </div>
 
-
-
-
+<div class="main-scroll">
 
 <div class="cards">
   <div class="card">
@@ -749,6 +749,7 @@ body {
   </div>
 </div>
 
+</div><!-- main-scroll -->
 <script>
 // ── LANGUAGE DATA (must be first) ──
 const LANG = {
@@ -2084,17 +2085,17 @@ document.getElementById('btnEN').classList.toggle('active', lang==='en');
 // ── PWA MANIFEST ──
 function injectManifest(){
   const manifest={
-    name:'Рабочие часы',
-    short_name:'Часы',
-    description:'Учёт рабочих часов',
+    name:'WorkTime',
+    short_name:'WorkTime',
+    description:'Work Hours Tracker',
     start_url:'.',
     display:'standalone',
     background_color:'#e5e5ea',
     theme_color:'#e5e5ea',
     orientation:'portrait',
     icons:[
-      {src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23007aff"/><text x="50" y="68" font-size="52" text-anchor="middle" fill="white">⏱</text></svg>',sizes:'192x192',type:'image/svg+xml'},
-      {src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><rect width="100" height="100" rx="22" fill="%23007aff"/><text x="50" y="68" font-size="52" text-anchor="middle" fill="white">⏱</text></svg>',sizes:'512x512',type:'image/svg+xml'}
+      {src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23007aff"/><circle cx="50" cy="50" r="38" fill="white"/><line x1="50" y1="50" x2="50" y2="22" stroke="%23333" stroke-width="4" stroke-linecap="round"/><line x1="50" y1="50" x2="68" y2="50" stroke="%23007aff" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="50" r="3" fill="%23333"/></svg>',sizes:'192x192',type:'image/svg+xml'},
+      {src:'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><circle cx="50" cy="50" r="45" fill="%23007aff"/><circle cx="50" cy="50" r="38" fill="white"/><line x1="50" y1="50" x2="50" y2="22" stroke="%23333" stroke-width="4" stroke-linecap="round"/><line x1="50" y1="50" x2="68" y2="50" stroke="%23007aff" stroke-width="3" stroke-linecap="round"/><circle cx="50" cy="50" r="3" fill="%23333"/></svg>',sizes:'512x512',type:'image/svg+xml'}
     ]
   };
   const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
