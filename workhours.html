@@ -546,7 +546,7 @@ body {
 
 <div class="cards">
   <div class="card">
-    <div class="card-period">1 — 15</div>
+    <div class="card-period">1 — 14</div>
     <div class="card-total" id="c1" style="color:var(--accent)">0 ч</div>
     <div class="card-days" id="cd1">0 дн.</div>
   </div>
@@ -1603,31 +1603,25 @@ function getPeriodStart(y, m, from){
 }
 
 function getBiweekly(){
-  // Use currently viewed month (cy/cm), show the active period
   const y = cy, m = cm;
   const lastDay = dim(y, m);
-  const sh2 = getPeriodStart(y, m, 16); // first Mon >= 16
 
-  // Determine which period is "active" based on today
   const todayY = now.getFullYear(), todayM = now.getMonth(), todayD = now.getDate();
   let fromDay, toDay;
 
   if(y === todayY && m === todayM){
-    // Current month: show the period we are in right now
-    if(todayD <= 15){
-      fromDay = 1; toDay = 15;
+    // Current month: 1-14 or 15-end
+    if(todayD <= 14){
+      fromDay = 1; toDay = 14;
     } else {
-      fromDay = sh2; toDay = lastDay;
+      fromDay = 15; toDay = lastDay;
     }
   } else if(y > todayY || (y === todayY && m > todayM)){
-    // Future month: show first half
-    fromDay = 1; toDay = 15;
+    fromDay = 1; toDay = 14;
   } else {
-    // Past month: show second half (full month done)
-    fromDay = sh2; toDay = lastDay;
+    fromDay = 15; toDay = lastDay;
   }
 
-  // Count ALL recorded hours in period — no weekday filter
   let total=0, days=0;
   for(let day=fromDay; day<=toDay; day++){
     const h = db[K(y, m, day)];
@@ -1648,16 +1642,16 @@ function render(){
 
   document.getElementById('mname').textContent=L.months[cm];
   // Second half label: always 16 to end of month (show all days)
-  document.getElementById('cp2').textContent=`16 — ${tot}`;
+  document.getElementById('cp2').textContent=`15 — ${tot}`;
 
-  // cal1: days 1-15, cal2: days 16 to end (ALL days shown, none skipped)
-  buildCal('cal1', 1, 15);
-  buildCal('cal2', 16, tot);
+  // cal1: days 1-14, cal2: days 15 to end
+  buildCal('cal1', 1, 14);
+  buildCal('cal2', 15, tot);
 
-  // Stats for cards: 1-15 and sh2-tot (biweekly period)
+  // Stats: 1-14 and 15-end
   let s1=0,n1=0,s2=0,n2=0;
-  for(let d=1;d<=15;d++){const h=db[K(cy,cm,d)];if(h>0){s1+=h;n1++;}}
-  for(let d=sh2;d<=tot;d++){const h=db[K(cy,cm,d)];if(h>0){s2+=h;n2++;}}
+  for(let d=1;d<=14;d++){const h=db[K(cy,cm,d)];if(h>0){s1+=h;n1++;}}
+  for(let d=15;d<=tot;d++){const h=db[K(cy,cm,d)];if(h>0){s2+=h;n2++;}}
 
   document.getElementById('c1').innerHTML=fmt(s1);
   document.getElementById('cd1').textContent=n1+' '+L.dn;
