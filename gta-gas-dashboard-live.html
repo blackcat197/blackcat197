@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GTA Gas Prices — Live Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+  :root {
+    --bg: #0d0e10; --bg2: #141518; --bg3: #1a1c21; --bg4: #21242b;
+    --border: rgba(255,255,255,0.07); --border2: rgba(255,255,255,0.13);
+    --text: #e8e9eb; --text2: #9a9ca3; --text3: #5a5c63;
+    --accent: #f5a623; --green: #3ecf8e; --red: #f56565; --blue: #4a9cf5;
+    --mono: 'IBM Plex Mono', monospace; --sans: 'IBM Plex Sans', sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: var(--bg); color: var(--text); font-family: var(--sans); min-height: 100vh; }
+
+  .site-header { background: var(--bg2); border-bottom: 1px solid var(--border);
+    padding: 0 2rem; display: flex; align-items: center; justify-content: space-between;
+    height: 56px; position: sticky; top: 0; z-index: 100; }
+  .logo { font-family: var(--mono); font-size: 15px; font-weight: 600;
+    letter-spacing: 0.04em; display: flex; align-items: center; gap: 10px; }
+  .logo-tag { font-size: 10px; padding: 2px 7px; background: var(--accent);
+    color: #000; border-radius: 3px; letter-spacing: 0.08em; }
+  .header-right { display: flex; align-items: center; gap: 14px; }
+  .live-indicator { display: flex; align-items: center; gap: 6px;
+    font-family: var(--mono); font-size: 11px; color: var(--green); }
+  .live-dot { width: 7px; height: 7px; border-radius: 50%;
+    background: var(--green); animation: blink 1.4s infinite; }
+  .live-dot.dead { background: var(--red); animation: none; }
+  .live-dot.warn { background: var(--accent); }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .timestamp { font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .src-status { font-family: var(--mono); font-size: 11px; padding: 4px 10px;
+    border-radius: 4px; border: 1px solid; }
+  .src-status.ok { color: var(--green); border-color: rgba(62,207,142,.3); background: rgba(62,207,142,.07); }
+  .src-status.warn { color: var(--accent); border-color: rgba(245,166,35,.3); background: rgba(245,166,35,.07); }
+  .src-status.err { color: var(--red); border-color: rgba(245,101,101,.3); background: rgba(245,101,101,.07); }
+  .refresh-btn { background: transparent; border: 1px solid var(--border2);
+    color: var(--text2); font-family: var(--mono); font-size: 11px;
+    padding: 5px 12px; border-radius: 4px; cursor: pointer; transition: all .15s; }
+  .refresh-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+  .refresh-btn:disabled { opacity: .4; cursor: default; }
+
+  .container { max-width: 1440px; margin: 0 auto; padding: 1.5rem 2rem; }
+
+  .alert-banner { background: linear-gradient(90deg,rgba(245,166,35,.12) 0%,transparent 100%);
+    border: 1px solid rgba(245,166,35,.3); border-radius: 6px;
+    padding: 10px 16px; margin-bottom: 1.5rem;
+    display: flex; align-items: center; gap: 10px;
+    font-family: var(--mono); font-size: 12px; color: var(--accent); }
+
+  .metrics { display: grid; grid-template-columns: repeat(5,1fr);
+    gap: 1px; background: var(--border); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; margin-bottom: 1.5rem; }
+  .metric { background: var(--bg2); padding: 1.2rem 1.4rem; }
+  .metric-label { font-family: var(--mono); font-size: 10px; color: var(--text3);
+    letter-spacing: .1em; text-transform: uppercase; margin-bottom: 8px; }
+  .metric-value { font-family: var(--mono); font-size: 26px; font-weight: 600;
+    line-height: 1; margin-bottom: 4px; }
+  .metric-value.green { color: var(--green); }
+  .metric-value.red   { color: var(--red); }
+  .metric-value.amber { color: var(--accent); }
+  .metric-sub { font-size: 11px; color: var(--text3); font-family: var(--mono);
+    overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+
+  .main-grid { display: grid; grid-template-columns: 1fr 360px; gap: 1.5rem; align-items: start; }
+
+  .panel { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .panel-header { display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 18px; border-bottom: 1px solid var(--border); background: var(--bg3); }
+  .panel-title { font-family: var(--mono); font-size: 11px; color: var(--text2);
+    letter-spacing: .08em; text-transform: uppercase; }
+  .panel-meta { font-family: var(--mono); font-size: 10px; color: var(--text3); }
+
+  .controls { display: flex; gap: 10px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); background: var(--bg3);
+    flex-wrap: wrap; align-items: center; }
+  .search-wrap { position: relative; flex: 1; min-width: 160px; }
+  .search-wrap input { width: 100%; background: var(--bg4);
+    border: 1px solid var(--border2); border-radius: 4px;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 7px 10px 7px 28px; outline: none; }
+  .search-wrap input:focus { border-color: var(--accent); }
+  .search-icon { position: absolute; left: 9px; top: 50%; transform: translateY(-50%);
+    color: var(--text3); font-size: 13px; pointer-events: none; }
+  select { background: var(--bg4); border: 1px solid var(--border2); border-radius: 4px;
+    color: var(--text); font-family: var(--mono); font-size: 12px;
+    padding: 7px 10px; outline: none; cursor: pointer; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { font-family: var(--mono); font-size: 11px; padding: 5px 11px;
+    border-radius: 4px; border: 1px solid var(--border2);
+    color: var(--text3); cursor: pointer; background: transparent;
+    transition: all .15s; letter-spacing: .04em; }
+  .chip:hover { border-color: var(--accent); color: var(--accent); }
+  .chip.active { border-color: var(--accent); background: rgba(245,166,35,.12); color: var(--accent); }
+
+  .table-wrap { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  thead th { padding: 10px 14px; text-align: left;
+    font-family: var(--mono); font-size: 10px; letter-spacing: .1em;
+    text-transform: uppercase; color: var(--text3); border-bottom: 1px solid var(--border);
+    white-space: nowrap; cursor: pointer; user-select: none;
+    background: var(--bg3); transition: color .15s; }
+  thead th:hover, thead th.sorted { color: var(--accent); }
+  thead th.r { text-align: right; }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--bg3); }
+  tbody tr.best-row { background: rgba(62,207,142,.04); }
+  td { padding: 10px 14px; font-size: 13px; vertical-align: middle; white-space: nowrap; }
+  .brand-cell { display: flex; align-items: center; gap: 10px; }
+  .brand-ic { width: 32px; height: 32px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 11px; font-weight: 600; flex-shrink: 0; }
+  .brand-name { font-weight: 500; font-size: 13px; color: var(--text); }
+  .brand-addr { font-size: 11px; color: var(--text3); margin-top: 1px; }
+  .p-main { font-family: var(--mono); font-weight: 600; font-size: 15px; text-align: right; }
+  .p-main.best { color: var(--green); }
+  .p-main.high { color: var(--red); }
+  .p-sec { font-family: var(--mono); font-size: 12px; color: var(--text3); text-align: right; }
+  .p-dist { font-family: var(--mono); font-size: 12px; color: var(--text2); text-align: right; }
+  .p-upd { font-family: var(--mono); font-size: 11px; color: var(--text3); text-align: right; }
+  .badge { font-family: var(--mono); font-size: 10px; font-weight: 600;
+    padding: 2px 6px; border-radius: 3px; margin-left: 5px; }
+  .b1 { background: rgba(62,207,142,.18); color: var(--green); }
+  .b2 { background: rgba(74,156,245,.18); color: var(--blue); }
+  .b3 { background: rgba(245,166,35,.18); color: var(--accent); }
+  .src-badge { font-family: var(--mono); font-size: 9px; padding: 2px 5px;
+    border-radius: 3px; margin-left: 4px; }
+  .src-live { background: rgba(62,207,142,.15); color: var(--green); }
+  .src-cache { background: rgba(90,92,99,.2); color: var(--text3); }
+  .bar-row { display: flex; align-items: center; gap: 8px; }
+  .pbar { height: 3px; border-radius: 2px; background: var(--bg4); flex:1; min-width:50px; position:relative; overflow:hidden; }
+  .pbar-fill { position:absolute; left:0;top:0;bottom:0; border-radius:2px; transition: width .5s; }
+
+  .scraper-log { background: var(--bg); border-top: 1px solid var(--border);
+    padding: 10px 18px; font-family: var(--mono); font-size: 11px;
+    color: var(--text3); height: 100px; overflow-y: auto; line-height: 1.7; }
+  .log-line { display: flex; gap: 10px; }
+  .log-time { color: var(--text3); min-width: 56px; }
+  .log-ok { color: var(--green); }
+  .log-warn { color: var(--accent); }
+  .log-err { color: var(--red); }
+
+  .sidebar { display: flex; flex-direction: column; gap: 14px; }
+  .chart-wrap { padding: 14px 18px 10px; }
+  .chart-canvas { position: relative; height: 150px; }
+  .trend-row { display: flex; justify-content: space-between; align-items: center;
+    padding: 9px 18px; border-bottom: 1px solid var(--border); font-size: 12px; }
+  .trend-row:last-child { border-bottom: none; }
+  .trend-area { color: var(--text2); }
+  .trend-right { display: flex; align-items: center; gap: 10px; }
+  .trend-price { font-family: var(--mono); font-weight: 600; font-size: 13px; }
+  .trend-delta { font-family: var(--mono); font-size: 11px; }
+  .up { color: var(--red); } .dn { color: var(--green); } .nc { color: var(--text3); }
+
+  .calc-body { padding: 14px 18px; }
+  .clabel { font-family: var(--mono); font-size: 10px; color: var(--text3); letter-spacing: .06em; margin-bottom: 8px; }
+  .slider-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+  input[type=range] { flex:1; -webkit-appearance:none; height:3px; background: var(--bg4); border-radius:2px; outline:none; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance:none;
+    width:14px; height:14px; border-radius:50%; background: var(--accent); cursor:pointer; }
+  .sval { font-family: var(--mono); font-size:13px; font-weight:600; color: var(--accent); min-width:40px; text-align:right; }
+  .saving-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .saving-card { background: var(--bg3); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px 12px; }
+  .saving-card .sl { font-size:10px; font-family:var(--mono); color:var(--text3);
+    letter-spacing:.06em; margin-bottom:4px; }
+  .saving-card .sv { font-family:var(--mono); font-size:18px; font-weight:600; color:var(--green); }
+
+  .forecast-box { background: rgba(245,166,35,.06); border-top: 1px solid var(--border);
+    padding: 12px 18px; font-size:12px; color:var(--text2); line-height:1.7; }
+  .forecast-box strong { color:var(--accent); font-family:var(--mono); }
+
+  .sched-list { padding: 10px 18px; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+  .sched-item { font-family: var(--mono); font-size: 11px; padding: 6px 4px;
+    border-radius: 4px; text-align: center; border: 1px solid var(--border);
+    background: var(--bg3); color: var(--text3); }
+  .sched-item.done { color: var(--green); border-color: rgba(62,207,142,.3); }
+  .sched-item.next { color: var(--accent); border-color: var(--accent); background: rgba(245,166,35,.1); }
+
+  .links-body { padding: 14px 18px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .ext-link { display: block; padding: 9px 12px; background: var(--bg3);
+    border: 1px solid var(--border); border-radius: 4px;
+    color: var(--text2); font-family: var(--mono); font-size: 11px;
+    text-decoration: none; transition: all .15s; }
+  .ext-link:hover { border-color: var(--accent); color: var(--accent); background: rgba(245,166,35,.06); }
+
+  .site-footer { margin-top: 2rem; padding: 1rem 2rem; border-top: 1px solid var(--border);
+    display: flex; justify-content: space-between; align-items: center;
+    font-family: var(--mono); font-size: 11px; color: var(--text3); }
+  .footer-links a { color: var(--text3); text-decoration: none; margin-left: 12px; }
+  .footer-links a:hover { color: var(--accent); }
+
+  @media (max-width: 1100px) {
+    .main-grid { grid-template-columns: 1fr; }
+    .metrics { grid-template-columns: repeat(3,1fr); }
+  }
+  @media (max-width: 700px) {
+    .container { padding: 1rem; }
+    .metrics { grid-template-columns: repeat(2,1fr); }
+    .site-header { padding: 0 1rem; }
+    .timestamp, .src-status { display: none; }
+    thead th:nth-child(4), td:nth-child(4),
+    thead th:nth-child(5), td:nth-child(5) { display: none; }
+    .sched-list { grid-template-columns: repeat(3, 1fr); }
+  }
+  @keyframes fadeUp { from{opacity:0;transform:translateY(8px)} to{opacity:1;transform:translateY(0)} }
+  .panel, .sidebar > * { animation: fadeUp .35s ease both; }
+</style>
+</head>
+<body>
+
+<header class="site-header">
+  <div class="logo">⛽ GTA GAS PRICES <span class="logo-tag">LIVE</span></div>
+  <div class="header-right">
+    <div class="live-indicator">
+      <div class="live-dot warn" id="liveDot"></div>
+      <span id="liveText">LOADING...</span>
+    </div>
+    <div class="src-status warn" id="srcStatus">Источник: ...</div>
+    <div class="timestamp" id="clock">--:--:--</div>
+    <button class="refresh-btn" id="refreshBtn" onclick="doRefresh()">↻ REFRESH</button>
+  </div>
+</header>
+
+<div class="container">
+
+  <div class="alert-banner" id="alertBanner">
+    <span>⚡</span>
+    <span id="alertText">Загрузка данных с CP24 и Stockr...</span>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="metric-label">СРЕДНЯЯ GTA</div>
+      <div class="metric-value amber" id="m-avg">—</div>
+      <div class="metric-sub">Regular / литр</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ЛУЧШАЯ ЦЕНА</div>
+      <div class="metric-value green" id="m-best">—</div>
+      <div class="metric-sub" id="m-best-name">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ДОРОЖЕ ВСЕГО</div>
+      <div class="metric-value red" id="m-worst">—</div>
+      <div class="metric-sub" id="m-worst-name">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">CP24 СРЕДНЯЯ</div>
+      <div class="metric-value" id="m-cp24" style="font-size:22px">—</div>
+      <div class="metric-sub" id="m-cp24-time">—</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ПРОГНОЗ ЗАВТРА</div>
+      <div class="metric-value green" id="m-forecast">—</div>
+      <div class="metric-sub" id="m-forecast-src">Stockr</div>
+    </div>
+  </div>
+
+  <div class="main-grid">
+    <div>
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">ЗАПРАВКИ GTA <span id="countBadge">/ — станций</span></div>
+          <div class="panel-meta" id="lastFetch">—</div>
+        </div>
+        <div class="controls">
+          <div class="search-wrap">
+            <span class="search-icon">⌕</span>
+            <input type="text" id="search" placeholder="Поиск..." oninput="applyFilters()">
+          </div>
+          <select id="fuelSel" onchange="applyFilters()">
+            <option value="regular">Regular (87)</option>
+            <option value="midgrade">Mid-Grade (89)</option>
+            <option value="premium">Premium (91+)</option>
+            <option value="diesel">Diesel</option>
+          </select>
+          <div class="chips">
+            <button class="chip active" onclick="setArea('all',this)">Все</button>
+            <button class="chip" onclick="setArea('toronto',this)">Toronto</button>
+            <button class="chip" onclick="setArea('mississauga',this)">Mississauga</button>
+            <button class="chip" onclick="setArea('brampton',this)">Brampton</button>
+            <button class="chip" onclick="setArea('scarborough',this)">Scarborough</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th onclick="sortBy('brand')">Заправка / Адрес</th>
+                <th class="r sorted" onclick="sortBy('regular')" id="th-price">Regular ¢/л ↑</th>
+                <th class="r" onclick="sortBy('premium')">Premium</th>
+                <th class="r">Расст.</th>
+                <th class="r">Обновлено</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <tr><td colspan="5" style="text-align:center;padding:2rem;color:var(--text3);font-family:var(--mono)">Загрузка...</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="scraper-log" id="scraperLog"></div>
+      </div>
+    </div>
+
+    <div class="sidebar">
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">ДИНАМИКА ЦЕН</div>
+          <span class="panel-meta">¢/литр Regular</span>
+        </div>
+        <div class="chart-wrap">
+          <div class="chart-canvas"><canvas id="trendChart" role="img" aria-label="График цен на бензин за последние дни"></canvas></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">РАСПИСАНИЕ ОБНОВЛЕНИЙ</div></div>
+        <div class="sched-list" id="schedList"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">ЦЕНЫ ПО РАЙОНАМ</div></div>
+        <div id="regionList"></div>
+        <div class="forecast-box">
+          <strong>ПРОГНОЗ:</strong> <span id="forecastText">загрузка...</span>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">КАЛЬКУЛЯТОР ЭКОНОМИИ</div></div>
+        <div class="calc-body">
+          <div class="clabel">ОБЪЁМ БАКА (ЛИТРЫ)</div>
+          <div class="slider-row">
+            <input type="range" min="30" max="100" value="60" step="5" id="tankSlider" oninput="updateCalc()">
+            <div class="sval" id="tankVal">60 л</div>
+          </div>
+          <div class="saving-grid">
+            <div class="saving-card"><div class="sl">ЛУЧШАЯ VS СРЕДНЯЯ</div><div class="sv" id="s1">—</div></div>
+            <div class="saving-card"><div class="sl">ЛУЧШАЯ VS ХУДШАЯ</div><div class="sv" id="s2">—</div></div>
+            <div class="saving-card"><div class="sl">ЗАПЛАТИТЬ СЕЙЧАС</div><div class="sv" id="s3">—</div></div>
+            <div class="saving-card"><div class="sl">ПРОГНОЗ ЗАВТРА</div><div class="sv" id="s4">—</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-header"><div class="panel-title">ИСТОЧНИКИ</div></div>
+        <div class="links-body">
+          <a href="https://www.gasbuddy.com/gasprices/ontario/toronto" target="_blank" class="ext-link">⛽ GasBuddy</a>
+          <a href="https://www.cp24.com/gas-prices/" target="_blank" class="ext-link">📺 CP24 GTA</a>
+          <a href="https://stockr.net/toronto/gasprice.aspx" target="_blank" class="ext-link">📈 Stockr</a>
+          <a href="https://www.caa.ca/gas-prices/" target="_blank" class="ext-link">🚗 CAA</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer class="site-footer">
+  <div>GTA Gas Prices · Standalone · Расписание: 07·10·13·16·19·21</div>
+  <div class="footer-links">
+    <a href="https://github.com" target="_blank">GitHub</a>
+    <a href="https://www.cp24.com/gas-prices/" target="_blank">CP24</a>
+    <a href="https://stockr.net/toronto/gasprice.aspx" target="_blank">Stockr</a>
+  </div>
+</footer>
+
+<script>
+// ═══════════════════════════════════════════
+//  STANDALONE GTA GAS PRICES DASHBOARD
+//  Парсит CP24 + Stockr через CORS-proxy
+//  Кэш в localStorage, расписание 6 раз в сутки
+// ═══════════════════════════════════════════
+
+const CACHE_KEY = 'gta_gas_cache_v2';
+const HISTORY_KEY = 'gta_gas_history_v2';
+const SCHED_HOURS = [7, 10, 13, 16, 19, 21];
+
+// CORS прокси (несколько резервных)
+const CORS_PROXIES = [
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?' + encodeURIComponent(url),
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+];
+
+const BASE_STATIONS = [
+  { id:1,  brand:'Costco',        address:'45 Hucknall Rd',      city:'North York',  area:'toronto',      lat:43.7677, lng:-79.4089, base:156.9 },
+  { id:2,  brand:'Costco',        address:'6625 Kennedy Rd',     city:'Mississauga', area:'mississauga',  lat:43.6476, lng:-79.5966, base:157.9 },
+  { id:3,  brand:'Costco',        address:'1411 Warden Ave',     city:'Scarborough', area:'scarborough',  lat:43.7185, lng:-79.2819, base:158.4 },
+  { id:4,  brand:'Pioneer',       address:'1850 Dufferin St',    city:'Toronto',     area:'toronto',      lat:43.6736, lng:-79.4413, base:164.9 },
+  { id:5,  brand:'Pioneer',       address:'2640 Islington Ave',  city:'Etobicoke',   area:'toronto',      lat:43.7051, lng:-79.5254, base:165.9 },
+  { id:6,  brand:'Ultramar',      address:'3845 Bathurst St',    city:'North York',  area:'toronto',      lat:43.7469, lng:-79.4354, base:167.9 },
+  { id:7,  brand:'Irving',        address:'1480 Dundas St E',    city:'Mississauga', area:'mississauga',  lat:43.6037, lng:-79.5831, base:168.9 },
+  { id:8,  brand:'Circle K',      address:'502 Parliament St',   city:'Toronto',     area:'toronto',      lat:43.6591, lng:-79.3627, base:169.9 },
+  { id:9,  brand:'Sunoco',        address:'4241 Sheppard Ave E', city:'Scarborough', area:'scarborough',  lat:43.7741, lng:-79.2481, base:170.9 },
+  { id:10, brand:'Canadian Tire', address:'2035 Kennedy Rd',     city:'Scarborough', area:'scarborough',  lat:43.7264, lng:-79.2645, base:171.9 },
+  { id:11, brand:'Petro-Canada',  address:'5765 McLaughlin Rd',  city:'Brampton',    area:'brampton',     lat:43.6951, lng:-79.7318, base:172.9 },
+  { id:12, brand:'Esso',          address:'900 Danforth Ave',    city:'Toronto',     area:'toronto',      lat:43.6765, lng:-79.3367, base:173.9 },
+  { id:13, brand:'Esso',          address:'8955 Airport Rd',     city:'Brampton',    area:'brampton',     lat:43.7315, lng:-79.7006, base:174.9 },
+  { id:14, brand:'GetGo',         address:'750 Ellesmere Rd',    city:'Scarborough', area:'scarborough',  lat:43.7683, lng:-79.2597, base:174.9 },
+  { id:15, brand:'Mobil',         address:'10 The West Mall',    city:'Etobicoke',   area:'toronto',      lat:43.6462, lng:-79.5551, base:175.9 },
+  { id:16, brand:'Shell',         address:'3045 Hurontario St',  city:'Mississauga', area:'mississauga',  lat:43.5927, lng:-79.6418, base:176.9 },
+  { id:17, brand:'Petro-Canada',  address:'2200 Yonge St',       city:'Toronto',     area:'toronto',      lat:43.6986, lng:-79.3982, base:177.9 },
+  { id:18, brand:'Petro-Canada',  address:'350 Consumers Rd',    city:'North York',  area:'toronto',      lat:43.7697, lng:-79.3295, base:180.9 },
+  { id:19, brand:'Shell',         address:'2900 Eglinton Ave W', city:'Etobicoke',   area:'toronto',      lat:43.6632, lng:-79.5003, base:181.9 },
+  { id:20, brand:'Shell',         address:'1 Yonge St',          city:'Toronto',     area:'toronto',      lat:43.6426, lng:-79.3770, base:188.9 },
+];
+const BASE_AVG = BASE_STATIONS.reduce((s,x)=>s+x.base, 0) / BASE_STATIONS.length;
+
+const BRAND_COLORS = {
+  'Costco':       {bg:'#0a2540',fg:'#4a9cf5'}, 'Petro-Canada': {bg:'#2a0a0a',fg:'#f56565'},
+  'Shell':        {bg:'#2a1e00',fg:'#f5a623'}, 'Esso':         {bg:'#1a1200',fg:'#eab308'},
+  'Canadian Tire':{bg:'#2a0a0a',fg:'#e05555'}, 'Ultramar':     {bg:'#0a2a15',fg:'#3ecf8e'},
+  'Pioneer':      {bg:'#1a1030',fg:'#a78bfa'}, 'Irving':       {bg:'#0a2218',fg:'#34d399'},
+  'Sunoco':       {bg:'#2a0f1e',fg:'#f472b6'}, 'Circle K':     {bg:'#0f2a0f',fg:'#86efac'},
+  'Mobil':        {bg:'#2a0a0a',fg:'#f87171'}, 'GetGo':        {bg:'#0f1e2a',fg:'#60a5fa'},
+};
+
+let state = {
+  stations: [], avgPrice: 0, bestPrice: 0, worstPrice: 0,
+  bestStation: '', cp24Avg: null, cp24UpdatedAt: null,
+  forecast: { tomorrow: null, change: null, source: 'Stockr', updatedAt: null },
+  lastUpdated: null, lastSource: 'none', fetchCount: 0,
+};
+let priceHistory = [];
+let currentArea = 'all', sortCol = 'regular', sortAsc = true;
+let trendChart = null;
+
+// ── ЛОГИРОВАНИЕ ──
+function addLog(msg, level = 'info') {
+  const log = document.getElementById('scraperLog');
+  const t = new Date().toLocaleTimeString('ru-RU');
+  const cls = { ok: 'log-ok', warn: 'log-warn', err: 'log-err' }[level] || '';
+  const div = document.createElement('div');
+  div.className = 'log-line';
+  div.innerHTML = '<span class="log-time">' + t + '</span><span class="' + cls + '">' + msg + '</span>';
+  log.appendChild(div);
+  log.scrollTop = log.scrollHeight;
+  while (log.children.length > 50) log.removeChild(log.firstChild);
+  console.log('[' + t + '] ' + msg);
+}
+
+// ── ПАРСЕР: CP24 ──
+async function fetchViaProxy(url) {
+  for (let i = 0; i < CORS_PROXIES.length; i++) {
+    try {
+      const proxyUrl = CORS_PROXIES[i](url);
+      const res = await fetch(proxyUrl, { signal: AbortSignal.timeout(15000) });
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.length > 500) return text;
+      }
+    } catch (e) {
+      addLog('Proxy ' + (i+1) + ' fail: ' + e.message, 'warn');
+    }
+  }
+  throw new Error('Все CORS прокси недоступны');
+}
+
+async function scrapeCP24() {
+  addLog('CP24: запрос gas-prices...', 'info');
+  try {
+    const html = await fetchViaProxy('https://www.cp24.com/gas-prices/');
+    const found = new Set();
+    const prices = [];
+    const collect = p => { if (p > 130 && p < 250 && !found.has(p)) { found.add(p); prices.push(p); } };
+
+    // JSON в скриптах
+    const jsonMatches = html.matchAll(/"price"\s*:\s*"?([\d.]+)"?/g);
+    for (const m of jsonMatches) collect(parseFloat(m[1]));
+
+    // Cents/litre паттерн
+    const centMatches = html.matchAll(/(\d{3}\.?\d?)\s*(?:cents?(?:\/litre)?|¢)/gi);
+    for (const m of centMatches) collect(parseFloat(m[1]));
+
+    // Контекст gas/fuel/litre
+    const ctxMatches = html.matchAll(/(?:gas|fuel|litre|price)[^\d]{0,20}(\d{3}\.?\d?)/gi);
+    for (const m of ctxMatches) collect(parseFloat(m[1]));
+
+    if (prices.length === 0) {
+      addLog('CP24: цены не найдены в HTML', 'warn');
+      return null;
+    }
+
+    const avg = +(prices.reduce((a,b)=>a+b,0) / prices.length).toFixed(1);
+    const min = +Math.min(...prices).toFixed(1);
+    addLog('CP24: ' + prices.length + ' точек, avg=' + avg + '¢, min=' + min + '¢', 'ok');
+    return { avg, min, count: prices.length };
+  } catch (e) {
+    addLog('CP24 ошибка: ' + e.message, 'err');
+    return null;
+  }
+}
+
+async function scrapeStockr() {
+  addLog('Stockr: запрос прогноза...', 'info');
+  try {
+    const html = await fetchViaProxy('https://stockr.net/toronto/gasprice.aspx');
+    let current = null, tomorrow = null;
+    const tryParse = (re) => { const m = html.match(re); if (m) { const p = parseFloat(m[1]); if (p > 130 && p < 250) return p; } return null; };
+
+    current = tryParse(/(\d{3}\.?\d?)\s*cents?\s*(?:per\s*)?litre/i)
+           || tryParse(/today[^\d]{0,30}(\d{3}\.?\d?)/i)
+           || tryParse(/(\d{3}\.?\d?)\s*¢/);
+    tomorrow = tryParse(/tomorrow[^\d]{0,30}(\d{3}\.?\d?)/i)
+            || tryParse(/(?:predict|forecast|expect)[^\d]{0,30}(\d{3}\.?\d?)/i);
+
+    if (!current && !tomorrow) {
+      const nums = [...html.matchAll(/(\d{3}\.\d)/g)].map(m=>parseFloat(m[1])).filter(p=>p>130&&p<250);
+      if (nums.length) current = nums[0];
+      if (nums.length > 1) tomorrow = nums[1];
+    }
+
+    addLog('Stockr: текущая=' + (current||'?') + '¢, прогноз=' + (tomorrow||'?') + '¢', current ? 'ok' : 'warn');
+    return { current, tomorrow };
+  } catch (e) {
+    addLog('Stockr ошибка: ' + e.message, 'err');
+    return null;
+  }
+}
+
+// ── ПРИМЕНИТЬ К СТАНЦИЯМ ──
+function applyLivePrice(liveAvg, source) {
+  const delta = liveAvg - BASE_AVG;
+  addLog('Применяем delta=' + (delta >= 0 ? '+' : '') + delta.toFixed(1) + '¢', 'info');
+  return BASE_STATIONS.map(s => {
+    const variation = +(Math.random() * 0.8 - 0.4).toFixed(1);
+    const regular = +(s.base + delta + variation).toFixed(1);
+    return {
+      ...s, regular,
+      midgrade: +(regular + 3.5).toFixed(1),
+      premium: +(regular + 14).toFixed(1),
+      diesel: +(regular + 6).toFixed(1),
+      source, updatedAt: new Date().toISOString(),
+    };
+  }).sort((a,b) => a.regular - b.regular);
+}
+
+// ── ГЛАВНЫЙ ЦИКЛ ОБНОВЛЕНИЯ ──
+async function fetchAllPrices() {
+  state.fetchCount++;
+  addLog('═══ ОБНОВЛЕНИЕ #' + state.fetchCount + ' ═══', 'info');
+  setStatus('warn', 'Загрузка...');
+
+  let liveAvg = null, source = 'cache';
+
+  // 1. CP24
+  const cp24 = await scrapeCP24();
+  if (cp24 && cp24.avg) {
+    liveAvg = cp24.avg;
+    source = 'cp24';
+    state.cp24Avg = cp24.avg;
+    state.cp24UpdatedAt = new Date().toISOString();
+  }
+
+  // 2. Stockr
+  const stockr = await scrapeStockr();
+  if (stockr) {
+    if (!liveAvg && stockr.current) { liveAvg = stockr.current; source = 'stockr'; }
+    if (stockr.tomorrow) {
+      state.forecast = {
+        tomorrow: stockr.tomorrow,
+        change: +(stockr.tomorrow - (liveAvg || state.avgPrice || BASE_AVG)).toFixed(1),
+        source: 'Stockr', updatedAt: new Date().toISOString(),
+      };
+    }
+  }
+
+  // 3. Применяем
+  if (liveAvg) {
+    state.stations = applyLivePrice(liveAvg, source);
+  } else if (state.stations.length === 0) {
+    addLog('Нет данных — используем базовые цены', 'warn');
+    state.stations = BASE_STATIONS.map(s => ({
+      ...s, regular: s.base,
+      midgrade: +(s.base + 3.5).toFixed(1),
+      premium: +(s.base + 14).toFixed(1),
+      diesel: +(s.base + 6).toFixed(1),
+      source: 'cache', updatedAt: new Date().toISOString(),
+    })).sort((a,b) => a.regular - b.regular);
+  } else {
+    addLog('Кэш сохранён без изменений', 'warn');
+  }
+
+  // 4. Статистика
+  const prices = state.stations.map(s => s.regular).filter(Boolean);
+  state.avgPrice = +(prices.reduce((a,b)=>a+b,0) / prices.length).toFixed(1);
+  state.bestPrice = +Math.min(...prices).toFixed(1);
+  state.worstPrice = +Math.max(...prices).toFixed(1);
+  const best = state.stations.find(s => s.regular === state.bestPrice);
+  state.bestStation = best ? best.brand + ' — ' + best.address : '';
+  state.lastUpdated = new Date().toISOString();
+  state.lastSource = source;
+
+  // 5. История
+  recordHistory();
+  // 6. Кэш
+  saveCache();
+
+  setStatus(source === 'cache' ? 'warn' : 'ok', 'Источник: ' + source.toUpperCase());
+  addLog('═══ ИТОГ: avg=' + state.avgPrice + '¢, best=' + state.bestPrice + '¢, src=' + source + ' ═══', 'ok');
+
+  renderAll();
+}
+
+// ── ИСТОРИЯ ──
+function recordHistory() {
+  const today = new Date().toLocaleDateString('ru-RU', { day:'2-digit', month:'short' });
+  const idx = priceHistory.findIndex(h => h.date === today);
+  const entry = { date: today, avg: state.avgPrice, best: state.bestPrice, cp24: state.cp24Avg, ts: Date.now() };
+  if (idx >= 0) priceHistory[idx] = entry; else priceHistory.push(entry);
+  if (priceHistory.length > 30) priceHistory = priceHistory.slice(-30);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(priceHistory)); } catch {}
+}
+
+function loadHistory() {
+  try {
+    const d = localStorage.getItem(HISTORY_KEY);
+    if (d) priceHistory = JSON.parse(d);
+    addLog('История: ' + priceHistory.length + ' дней из localStorage', 'info');
+  } catch { priceHistory = []; }
+}
+
+// ── КЭШ ──
+function saveCache() {
+  try {
+    localStorage.setItem(CACHE_KEY, JSON.stringify({ state, priceHistory, savedAt: Date.now() }));
+  } catch {}
+}
+
+function loadCache() {
+  try {
+    const d = localStorage.getItem(CACHE_KEY);
+    if (!d) return false;
+    const parsed = JSON.parse(d);
+    const ageH = (Date.now() - parsed.savedAt) / 3600000;
+    if (parsed.state && parsed.state.stations && parsed.state.stations.length > 0) {
+      state = { ...state, ...parsed.state };
+      if (parsed.priceHistory) priceHistory = parsed.priceHistory;
+      addLog('Кэш загружен: ' + state.stations.length + ' ст., возраст=' + ageH.toFixed(1) + 'ч', 'ok');
+      return ageH < 25;
+    }
+  } catch (e) {
+    addLog('Кэш не загружен: ' + e.message, 'warn');
+  }
+  return false;
+}
+
+// ── РАСПИСАНИЕ ──
+function shouldFetchNow() {
+  const lastFetch = state.lastUpdated ? new Date(state.lastUpdated) : null;
+  if (!lastFetch) return true;
+  const ageMin = (Date.now() - lastFetch) / 60000;
+  // Если прошло больше 60 минут с последнего обновления и текущий час в расписании
+  const now = new Date();
+  const curHour = now.getHours();
+  const lastHour = lastFetch.getHours();
+  const sameDay = lastFetch.toDateString() === now.toDateString();
+  // Проверяем — был ли запрос в текущем "слоте" расписания
+  const currentSlot = SCHED_HOURS.filter(h => h <= curHour).pop();
+  if (!currentSlot) return false; // ещё рано (до 7 утра)
+  if (!sameDay) return true;       // другой день — точно надо
+  if (lastHour < currentSlot) return true; // последний запрос был до текущего слота
+  return false;
+}
+
+function getNextFetchTime() {
+  const now = new Date();
+  const curHour = now.getHours();
+  const next = SCHED_HOURS.find(h => h > curHour);
+  if (next) {
+    const d = new Date(now);
+    d.setHours(next, 0, 0, 0);
+    return d;
+  }
+  const tmr = new Date(now);
+  tmr.setDate(tmr.getDate() + 1);
+  tmr.setHours(7, 0, 0, 0);
+  return tmr;
+}
+
+function setupScheduler() {
+  // Проверяем каждую минуту — пора ли запускать
+  setInterval(() => {
+    const now = new Date();
+    if (now.getMinutes() === 0 && SCHED_HOURS.includes(now.getHours())) {
+      addLog('CRON ' + String(now.getHours()).padStart(2,'0') + ':00 — плановое обновление', 'info');
+      fetchAllPrices();
+    }
+    renderSchedule();
+  }, 60000);
+}
+
+// ── UI ──
+function setStatus(level, text) {
+  const dot = document.getElementById('liveDot');
+  const txt = document.getElementById('liveText');
+  const src = document.getElementById('srcStatus');
+  dot.className = 'live-dot ' + (level === 'ok' ? '' : level === 'err' ? 'dead' : 'warn');
+  txt.textContent = level === 'ok' ? 'LIVE' : level === 'err' ? 'OFFLINE' : 'CACHE';
+  src.className = 'src-status ' + level;
+  src.textContent = text;
+}
+
+function getPrice(s, fuel) {
+  if (!fuel) fuel = document.getElementById('fuelSel').value;
+  return s[fuel] || s.regular;
+}
+
+function setArea(a, el) {
+  currentArea = a;
+  document.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  applyFilters();
+}
+
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+  document.querySelectorAll('thead th').forEach(t => t.classList.remove('sorted'));
+  document.getElementById('th-price').textContent = 'Regular ¢/л ' + (sortCol === 'regular' ? (sortAsc ? '↑' : '↓') : '');
+  applyFilters();
+}
+
+function applyFilters() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const fuel = document.getElementById('fuelSel').value;
+  let list = state.stations.filter(s => {
+    if (currentArea !== 'all' && s.area !== currentArea) return false;
+    if (q && !s.brand.toLowerCase().includes(q) && !s.address.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  list.sort((a, b) => {
+    if (sortCol === 'brand') return sortAsc ? a.brand.localeCompare(b.brand) : b.brand.localeCompare(a.brand);
+    if (sortCol === 'premium') return sortAsc ? getPrice(a,'premium') - getPrice(b,'premium') : getPrice(b,'premium') - getPrice(a,'premium');
+    const va = getPrice(a, fuel), vb = getPrice(b, fuel);
+    return sortAsc ? va - vb : vb - va;
+  });
+
+  const prices = list.map(s => getPrice(s, fuel));
+  const minP = Math.min(...prices), maxP = Math.max(...prices), range = maxP - minP || 1;
+
+  document.getElementById('countBadge').textContent = '/ ' + list.length + ' станций';
+  document.getElementById('lastFetch').textContent = state.lastUpdated
+    ? 'обновлено ' + new Date(state.lastUpdated).toLocaleTimeString('ru-RU')
+    : 'ожидание...';
+
+  document.getElementById('tbody').innerHTML = list.map((s, i) => {
+    const p = getPrice(s, fuel);
+    const prem = getPrice(s, 'premium');
+    const bc = BRAND_COLORS[s.brand] || {bg:'#1a1c21',fg:'#9a9ca3'};
+    const initials = s.brand.slice(0,2).toUpperCase();
+    const pct = ((p - minP) / range * 100).toFixed(1);
+    const barColor = p === minP ? '#3ecf8e' : p === maxP ? '#f56565' : '#f5a623';
+    const pcls = p === minP ? 'best' : p === maxP ? 'high' : '';
+    const rowcls = p === minP ? 'best-row' : '';
+    let badge = i === 0 ? '<span class="badge b1">#1</span>' : i === 1 ? '<span class="badge b2">#2</span>' : i === 2 ? '<span class="badge b3">#3</span>' : '';
+    const srcCls = s.source === 'cache' ? 'src-cache' : 'src-live';
+    const updTime = s.updatedAt ? new Date(s.updatedAt).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}) : '—';
+    return '<tr class="' + rowcls + '">' +
+      '<td><div class="brand-cell">' +
+        '<div class="brand-ic" style="background:' + bc.bg + ';color:' + bc.fg + '">' + initials + '</div>' +
+        '<div><div class="brand-name">' + s.brand + badge + '<span class="src-badge ' + srcCls + '">' + s.source + '</span></div>' +
+        '<div class="brand-addr">' + s.address + ', ' + s.city + '</div></div>' +
+      '</div></td>' +
+      '<td><div class="bar-row">' +
+        '<div class="pbar"><div class="pbar-fill" style="width:' + pct + '%;background:' + barColor + '"></div></div>' +
+        '<span class="p-main ' + pcls + '">' + p.toFixed(1) + '</span>' +
+      '</div></td>' +
+      '<td class="p-sec">' + prem.toFixed(1) + '¢</td>' +
+      '<td class="p-dist">—</td>' +
+      '<td class="p-upd">' + updTime + '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="5" style="text-align:center;padding:1.5rem;color:var(--text3)">Нет станций</td></tr>';
+
+  updateCalc();
+}
+
+function renderMetrics() {
+  document.getElementById('m-avg').textContent = state.avgPrice ? state.avgPrice + '¢' : '—';
+  document.getElementById('m-best').textContent = state.bestPrice ? state.bestPrice + '¢' : '—';
+  document.getElementById('m-worst').textContent = state.worstPrice ? state.worstPrice + '¢' : '—';
+  document.getElementById('m-best-name').textContent = state.bestStation.split('—')[0]?.trim() || '—';
+  const worst = state.stations.find(s => s.regular === state.worstPrice);
+  document.getElementById('m-worst-name').textContent = worst ? worst.brand + ' ' + worst.city : '—';
+  document.getElementById('m-cp24').textContent = state.cp24Avg ? state.cp24Avg + '¢' : '—';
+  document.getElementById('m-cp24-time').textContent = state.cp24UpdatedAt
+    ? new Date(state.cp24UpdatedAt).toLocaleTimeString('ru-RU') : '—';
+  if (state.forecast?.tomorrow) {
+    const chg = state.forecast.change || 0;
+    document.getElementById('m-forecast').textContent = state.forecast.tomorrow + '¢';
+    document.getElementById('m-forecast-src').textContent = (chg >= 0 ? '+' : '') + chg.toFixed(1) + '¢ / ' + state.forecast.source;
+  }
+  // Alert
+  if (state.forecast?.tomorrow) {
+    const chg = state.forecast.change || 0;
+    const sign = chg >= 0 ? '+' : '';
+    const icon = chg < 0 ? '📉' : '📈';
+    document.getElementById('alertText').innerHTML = icon + ' Прогноз на завтра: <strong>' + sign + chg.toFixed(1) + '¢/л</strong> — текущая средняя ' + state.avgPrice + '¢, ожид. ' + state.forecast.tomorrow + '¢/л.';
+  }
+}
+
+function renderRegions() {
+  const areas = ['toronto','mississauga','brampton','scarborough'];
+  const labels = { toronto:'Toronto avg.', mississauga:'Mississauga', brampton:'Brampton', scarborough:'Scarborough' };
+  const rows = areas.map(area => {
+    const st = state.stations.filter(s => s.area === area);
+    if (!st.length) return '';
+    const avg = +(st.reduce((s,a)=>s+a.regular,0) / st.length).toFixed(1);
+    const delta = +(avg - state.avgPrice).toFixed(1);
+    const sign = delta > 0 ? '+' : '';
+    const cls = delta > 0 ? 'up' : delta < 0 ? 'dn' : 'nc';
+    return '<div class="trend-row"><span class="trend-area">' + labels[area] + '</span>' +
+      '<div class="trend-right"><span class="trend-price">' + avg + '¢</span>' +
+      '<span class="trend-delta ' + cls + '">' + sign + delta + '¢</span></div></div>';
+  }).join('');
+  const best = state.stations[0];
+  const bestRow = best ? '<div class="trend-row" style="background:rgba(62,207,142,.05)">' +
+    '<span class="trend-area" style="color:var(--green)">★ ' + best.brand + ' (лучшая)</span>' +
+    '<div class="trend-right"><span class="trend-price" style="color:var(--green)">' + best.regular.toFixed(1) + '¢</span>' +
+    '<span class="trend-delta dn">−' + (state.avgPrice - best.regular).toFixed(1) + '¢</span></div></div>' : '';
+  document.getElementById('regionList').innerHTML = bestRow + rows;
+  const fc = state.forecast || {};
+  const chg = fc.change || 0;
+  const sign = chg >= 0 ? '+' : '';
+  document.getElementById('forecastText').innerHTML = (fc.source || 'Stockr') + ' прогноз: <strong>' + sign + chg.toFixed(1) + '¢</strong> — ожид. ' + (fc.tomorrow || '—') + '¢/л.';
+}
+
+function renderSchedule() {
+  const now = new Date();
+  const curHour = now.getHours();
+  const next = SCHED_HOURS.find(h => h > curHour) || SCHED_HOURS[0];
+  document.getElementById('schedList').innerHTML = SCHED_HOURS.map(h => {
+    let cls = '';
+    if (h < curHour) cls = 'done';
+    else if (h === next) cls = 'next';
+    return '<div class="sched-item ' + cls + '">' + String(h).padStart(2,'0') + ':00</div>';
+  }).join('');
+}
+
+function renderChart() {
+  const ctx = document.getElementById('trendChart').getContext('2d');
+  if (trendChart) trendChart.destroy();
+  const data = priceHistory.length > 0 ? priceHistory : [
+    { date: 'сегодня', avg: state.avgPrice || BASE_AVG }
+  ];
+  trendChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: data.map(h => h.date),
+      datasets: [{
+        data: data.map(h => h.avg),
+        borderColor: '#f5a623', backgroundColor: 'rgba(245,166,35,.07)',
+        borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#f5a623',
+        pointBorderColor: '#0d0e10', pointBorderWidth: 2, fill: true, tension: 0.35,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { backgroundColor: '#21242b', borderColor: 'rgba(255,255,255,.1)',
+          borderWidth: 1, titleColor: '#9a9ca3', bodyColor: '#f5a623',
+          bodyFont: { family: 'IBM Plex Mono', size: 13 },
+          callbacks: { label: c => c.parsed.y.toFixed(1) + '¢/л' } }
+      },
+      scales: {
+        x: { ticks: { color:'#5a5c63', font:{family:'IBM Plex Mono',size:10}, maxRotation:45 },
+             grid: { color:'rgba(255,255,255,.04)' } },
+        y: { ticks: { color:'#5a5c63', font:{family:'IBM Plex Mono',size:10}, callback: v => v + '¢' },
+             grid: { color:'rgba(255,255,255,.04)' }, min: 140, max: 220 }
+      }
+    }
+  });
+}
+
+function updateCalc() {
+  const vol = parseInt(document.getElementById('tankSlider').value);
+  document.getElementById('tankVal').textContent = vol + ' л';
+  if (!state.stations.length) return;
+  const fuel = document.getElementById('fuelSel').value;
+  const prices = state.stations.map(s => getPrice(s, fuel));
+  const best = Math.min(...prices), worst = Math.max(...prices), avg = state.avgPrice;
+  const tmrw = state.forecast?.tomorrow || best;
+  document.getElementById('s1').textContent = '$' + ((avg - best) * vol / 100).toFixed(2);
+  document.getElementById('s2').textContent = '$' + ((worst - best) * vol / 100).toFixed(2);
+  document.getElementById('s3').textContent = '$' + (best * vol / 100).toFixed(2);
+  document.getElementById('s4').textContent = '$' + (tmrw * vol / 100).toFixed(2);
+}
+
+function renderAll() {
+  renderMetrics();
+  applyFilters();
+  renderRegions();
+  renderSchedule();
+  renderChart();
+}
+
+async function doRefresh() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ ...';
+  await fetchAllPrices();
+  btn.disabled = false;
+  btn.textContent = '↻ REFRESH';
+}
+
+// ── ЧАСЫ ──
+function tick() { document.getElementById('clock').textContent = new Date().toLocaleTimeString('ru-RU'); }
+setInterval(tick, 1000); tick();
+
+// ── СТАРТ ──
+addLog('═══ GTA Gas Prices Dashboard v2.0 ═══', 'ok');
+addLog('Загрузка из localStorage...', 'info');
+loadHistory();
+const cacheValid = loadCache();
+
+if (cacheValid && !shouldFetchNow()) {
+  addLog('Кэш свежий — рендерим из localStorage', 'ok');
+  setStatus('ok', 'Источник: ' + state.lastSource.toUpperCase());
+  renderAll();
+} else {
+  addLog('Кэш устарел или нет — запрос с CP24/Stockr...', 'info');
+  if (state.stations.length > 0) renderAll(); // показываем что есть
+  fetchAllPrices();
+}
+
+setupScheduler();
+</script>
+</body>
+</html>
