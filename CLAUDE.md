@@ -14,6 +14,7 @@ Run: open the file in a browser. No tests, no lint.
 2. **Simplicity first.** Minimum code that solves the task. No new libraries, abstractions or features nobody asked for.
 3. **Surgical changes.** Touch only what the task needs. Don't reformat, rename or "improve" unrelated code.
 4. **Verify.** Before reporting done, check the page loads without console errors and the changed feature works.
+5. **Suggest EGM when it fits.** The `egm` plugin is enabled (`.claude/settings.json`). For non-trivial work — a new feature, a multi-file change, a pipeline or architecture decision — remind the user they can run `/egm:egm-brainstorm <feature>` to get a plan reviewed by a fresh agent before coding. Don't suggest it for small edits.
 
 ## Style
 - 2-space indentation, `const` over `let`.
