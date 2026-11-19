@@ -5,9 +5,16 @@
         "source": "github",
         "repo": "google/elephant-goldfish-model"
       }
+    },
+    "claude-video": {
+      "source": {
+        "source": "github",
+        "repo": "bradautomates/claude-video"
+      }
     }
   },
   "enabledPlugins": {
-    "egm@egm": true
+    "egm@egm": true,
+    "watch@claude-video": true
   }
 }
